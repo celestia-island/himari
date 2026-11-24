@@ -1,0 +1,8 @@
+% Arrhenius 速率常数。
+decl {
+    A : rate_prefactor [Hz];
+    E_a : activation_energy [J/mol];
+    R : gas_constant [J/mol/K];
+    T : temperature [K];
+}
+arrhenius = A * exp(-(E_a / (R * T)))

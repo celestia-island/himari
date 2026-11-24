@@ -1,0 +1,12 @@
+/target
+**/target
+probe-build.log
+
+# celestia-devtools: staged-on-demand shared justfile recipes (celestia-devtools init / just fetch)
+/.just/
+/celestia-devtools.just
+.himari-tracked
+
+# Python bytecode (the staging-budget launcher must never commit a .pyc)
+__pycache__/
+*.pyc

@@ -1,0 +1,8 @@
+% 共享库：大气模型（被 entry.formula 用 `use` 引用）
+% 指数大气：rho = rho_0 · exp(-h / H)（等温近似，工程上够用）
+decl {
+    rho_0 : sea_level_density [kg/m^3];
+    h : altitude [m];
+    H : scale_height [m];
+}
+rho = rho_0 * exp(-h / H)

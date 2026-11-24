@@ -1,0 +1,7 @@
+% Warburg 阻抗（扩散控制 EIS 的 45° 线）：Z_w = σ·f^(-1/2)。
+% 分数量纲 Ω·s^(-1/2) 现已合法（半整数指数），不再需要参考频率绕行。
+decl {
+    sigma : warburg_coefficient [V/A];
+    f : frequency [Hz];
+}
+warburg_re = sigma * f ^ (-1 / 2)

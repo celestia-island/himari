@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "warburg_re", "line": 6, "dim": "kg·m^2·s^(-5/2)·A^-2", "params": ["sigma", "f"], "latex": "\\sigma \\cdot f^{\\frac{-1}{2}}", "mathml": "<math><mrow><mi>sigma</mi><mo>⁢</mo><msup><mi>f</mi><mfrac><mrow><mo>-</mo><mn>1</mn></mrow><mn>2</mn></mfrac></msup></mrow></math>" }
+  ]
+}

@@ -1,0 +1,11 @@
+% Butler–Volmer 电极动力学：LaTeX 表面的金标用例。
+decl {
+    i_0 : current_density [A/m^2];
+    eta : overpotential [V];
+    alpha : transfer_coefficient;
+    n : electron_count;
+    F : faraday [C/mol];
+    R : gas_constant [J/mol/K];
+    T : temperature [K];
+}
+bv = i_0 * (exp(alpha * n * F * eta / (R * T)) - exp(-((1 - alpha) * n * F * eta / (R * T))))

@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "diffusion_stencil", "line": 4, "dim": "kg·m·s^-3·K^-1", "params": ["k"], "latex": "\\begin{bmatrix}2 \\cdot k & -k & \\cdots & 0 \\\\ -k & 2 \\cdot k & -k & \\cdots \\\\ \\cdots & -k & 2 \\cdot k & -k \\\\ 0 & \\cdots & -k & 2 \\cdot k\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mrow><mn>2</mn><mo>⁢</mo><mi>k</mi></mrow></mtd><mtd><mrow><mo>-</mo><mi>k</mi></mrow></mtd><mtd><mo>⋯</mo></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mrow><mo>-</mo><mi>k</mi></mrow></mtd><mtd><mrow><mn>2</mn><mo>⁢</mo><mi>k</mi></mrow></mtd><mtd><mrow><mo>-</mo><mi>k</mi></mrow></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mo>⋯</mo></mtd><mtd><mrow><mo>-</mo><mi>k</mi></mrow></mtd><mtd><mrow><mn>2</mn><mo>⁢</mo><mi>k</mi></mrow></mtd><mtd><mrow><mo>-</mo><mi>k</mi></mrow></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mo>⋯</mo></mtd><mtd><mrow><mo>-</mo><mi>k</mi></mrow></mtd><mtd><mrow><mn>2</mn><mo>⁢</mo><mi>k</mi></mrow></mtd></mtr></mtable></math>" }
+  ]
+}

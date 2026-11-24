@@ -1,0 +1,13 @@
+% Michaelis–Menten 的稳态：解出酶-底物复合物浓度 ES。
+% 平衡方程：k_on·E·S − (k_off + k_cat)·ES = 0 → ES = k_on·E·S/(k_off + k_cat)
+% `solve(方程, 变量)` 是**符号线性求解**：解出来的仍是 IR，所以能继续做
+% 量纲检查、求值、生成代码、求偏导 —— 不需要第二套机制。
+decl {
+    k_on : association_rate [1/mol/s];
+    k_off : dissociation_rate [Hz];
+    k_cat : turnover_rate [Hz];
+    E : enzyme_concentration [mol];
+    S : substrate_concentration [mol];
+    ES : complex_concentration [mol];
+}
+ES_ss = solve(k_on * E * S - (k_off + k_cat) * ES, ES)

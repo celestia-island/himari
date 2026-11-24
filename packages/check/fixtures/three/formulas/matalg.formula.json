@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "name": "M", "line": 5, "dim": "1", "params": [], "latex": "(\\begin{bmatrix}1 & 2 \\\\ 3 & 4\\end{bmatrix} \\cdot \\begin{bmatrix}5 & 6 \\\\ 7 & 8\\end{bmatrix} + \\begin{bmatrix}1 & 1 \\\\ 1 & 1\\end{bmatrix})^{T}", "mathml": "<math><msup><mrow><mrow><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo>⁢</mo><mtable><mtr><mtd><mn>5</mn></mtd><mtd><mn>6</mn></mtd></mtr><mtr><mtd><mn>7</mn></mtd><mtd><mn>8</mn></mtd></mtr></mtable></mrow><mo>+</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>1</mn></mtd></mtr></mtable></mrow><mi>T</mi></msup></math>" },
+    { "name": "S", "line": 10, "dim": "1", "params": ["k"], "latex": "k \\cdot \\begin{bmatrix}1 & 2 \\\\ 3 & 4\\end{bmatrix}", "mathml": "<math><mrow><mi>k</mi><mo>⁢</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable></mrow></math>" }
+  ]
+}

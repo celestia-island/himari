@@ -1,0 +1,8 @@
+% 三次多项式：整数幂必须发射成 std 的 `powi`（历史缺陷：发射过不存在的方法，
+% 任何 x^3 都会编译失败）。这条公式存在的意义就是**被编译**。
+decl {
+    x : normalized_input [1];
+    a : cubic_coefficient [1];
+    b : linear_coefficient [1];
+}
+p3 = a * x ^ 3 + b * x

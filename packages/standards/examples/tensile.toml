@@ -1,0 +1,6 @@
+standard = "GB-T-228.1"
+edition = 2021
+maximum_force = 31415.0
+cross_section_area = 1e-4
+initial_gauge_length = 0.05
+final_gauge_length = 0.065

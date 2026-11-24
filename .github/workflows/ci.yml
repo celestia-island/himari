@@ -1,0 +1,30 @@
+name: CI
+
+# 触发口径（2026-11-06 用户裁决）：CI 不在 PR 上跑；trunk 基本检查由
+# depspec/verify-versions/family-versions 等轻量复用件承担；
+# 编译/测试/clippy/harness 一律 workflow_dispatch 手动触发。
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --quiet
+      # WGSL 真编译门：naga 解析+校验每条发射出来的 kernel（纯 CPU，runner 不需要显卡）
+      - run: cargo test -p himari-check --features wgsl-compile --test wgsl_compile --quiet
+      - run: cargo run -p himari-check --release --quiet
+      - run: python3 scripts/fmt_check.py
+      # Nine-language docs must stay structurally aligned with the English canonical.
+      - run: python3 scripts/i18n_check.py
+      # Uncatalogued-error budget may only shrink.
+      - run: python3 scripts/staging_budget.py --against-git
+      # 测试中的 build.rs 已重生成 checked-in 产物；任何差异都是源/生成物漂移。
+      - run: git diff --exit-code

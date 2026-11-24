@@ -1,0 +1,10 @@
+% 双电层充电电流（真实单位书写）：i_c = C_dl · E · f
+% 量纲：F · V / s = C/s = A ✓（前缀不参与量纲，只影响可读性与换算 API）
+% 注意：**生成函数的入参一律 SI 基单位** —— 声明 [µF] 只是文档，
+% 生成物会在 doc comment 里标出换算因子（1 µF = 1e-6 F）。
+decl {
+    C_dl : double_layer_capacitance [µF];
+    E : potential_step [mV];
+    f : frequency [kHz];
+}
+i_c = C_dl * E * f

@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "ES_ss", "line": 12, "dim": "mol", "params": ["k_on", "k_off", "k_cat", "E", "S"], "latex": "\\operatorname{solve}(\\mathrm{k_on} \\cdot E \\cdot S - (\\mathrm{k_off} + \\mathrm{k_cat}) \\cdot \\mathrm{ES}, \\mathrm{ES})", "mathml": "<math><mrow><mi>solve</mi><mo>⁡</mo><mo>(</mo><mrow><mrow><mrow><mi>k_on</mi><mo>⁢</mo><mi>E</mi></mrow><mo>⁢</mo><mi>S</mi></mrow><mo>-</mo><mrow><mrow><mi>k_off</mi><mo>+</mo><mi>k_cat</mi></mrow><mo>⁢</mo><mi>ES</mi></mrow></mrow><mo>,</mo><mi>ES</mi><mo>)</mo></mrow></math>" }
+  ]
+}

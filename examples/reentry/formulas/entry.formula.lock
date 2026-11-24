@@ -1,0 +1,4 @@
+# himari 公式库锁 —— 由 `himari-fmt --lock` 生成，勿手改。
+# 格式：sha256<TAB><内容哈希><TAB><声明版本或 -><TAB><相对路径>
+sha256	9af53f796e92fba81f4e6ba9d632cf089917615000010a34fcf51e87aba2f731	-	entry.formula
+sha256	b14a40c00625ad07affcf5c3ed4221ce27610f9ee69c20f93f5c6f2c543bc075	-	lib/atmosphere.formula

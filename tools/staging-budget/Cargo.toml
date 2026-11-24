@@ -1,0 +1,11 @@
+[package]
+name = "himari-staging-budget"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+description = "Counts uncatalogued error producers in the workspace by AST (gate: the total may only go down)."
+
+[dependencies]
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+proc-macro2 = "1"
+walkdir = "2"

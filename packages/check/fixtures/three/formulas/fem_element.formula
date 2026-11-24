@@ -1,0 +1,19 @@
+% FEM 等参单元：雅可比行列式与面积权重（det / trace / adjoint 的实战用法）
+% 2D 线性三角形：J = [x2-x1, x3-x1; y2-y1, y3-y1]，单元面积 = det(J)/2。
+% det/trace/adjoint 只吃**具体矩阵字面量**（形状编译期未知的符号矩阵明确拒绝）。
+% 逆雅可比：等参变换要 `∂N/∂x = J⁻¹·∂N/∂ξ`（inv 只做 2 阶：3 阶伴随阵展开
+% 又长又容易错，明确拒绝，需要时走数值库）
+decl {
+    x_1 : node_x [m];
+    x_2 : node_x [m];
+    x_3 : node_x [m];
+    y_1 : node_y [m];
+    y_2 : node_y [m];
+    y_3 : node_y [m];
+}
+J = [ x_2 - x_1, x_3 - x_1 ;
+  y_2 - y_1, y_3 - y_1 ]
+area = det(J) / 2
+jac_trace = trace(J)
+J_adj = adjoint(J)
+J_inv = inv(J)

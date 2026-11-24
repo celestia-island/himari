@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "M2", "line": 9, "dim": "1", "params": ["a", "b", "c", "d"], "latex": "\\begin{bmatrix}a & b \\\\ c & d\\end{bmatrix}^{2}", "mathml": "<math><msup><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable><mn>2</mn></msup></math>" }
+  ]
+}

@@ -1,0 +1,50 @@
+[package]
+name = "himari-check"
+version = "0.1.0"
+edition.workspace = true
+description = "CLI and language server for himari: format, evaluate, find roots, diagnose, edit .formula files."
+rust-version.workspace = true
+license-file.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+default-run = "himari-check"
+
+[dependencies]
+
+himari = { workspace = true, features = ["std"] }
+himari-latex = { workspace = true, features = ["std"] }
+himari-loader = { workspace = true }
+himari-matlab = { workspace = true, features = ["std"] }
+[dev-dependencies]
+
+# naga 默认不带任何前端：WGSL 解析器在它自己的 `wgsl-in` feature 后面
+naga = { version = "30.0", default-features = false, features = ["wgsl-in"] }
+[features]
+default = []
+# `cargo test -p himari-check --features wgsl-compile` 才真编译 WGSL
+wgsl-compile = []
+[[bin]]
+name = "himari-check"
+path = "src/main.rs"
+
+[[bin]]
+name = "himari-fmt"
+path = "src/bin/fmt.rs"
+
+[[bin]]
+name = "himari-eval"
+path = "src/bin/eval.rs"
+
+[[bin]]
+name = "himari-lsp"
+path = "src/bin/lsp.rs"
+
+[[test]]
+name = "wgsl_compile"
+path = "tests/wgsl_compile.rs"
+required-features = ["wgsl-compile"]

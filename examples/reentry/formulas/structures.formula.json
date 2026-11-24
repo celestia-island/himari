@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "x_static", "line": 7, "dim": "m", "params": ["k", "F"], "latex": "\\operatorname{solve}(k \\cdot x - F, x)", "mathml": "<math><mrow><mi>solve</mi><mo>⁡</mo><mo>(</mo><mrow><mrow><mi>k</mi><mo>⁢</mo><mi>x</mi></mrow><mo>-</mo><mi>F</mi></mrow><mo>,</mo><mi>x</mi><mo>)</mo></mrow></math>" }
+  ]
+}

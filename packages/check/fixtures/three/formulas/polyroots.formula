@@ -1,0 +1,19 @@
+% 多项式求根：`roots(poly, x)` 给**全部根**（列向量），只做 1–2 次。
+% 二次方程的根在企业级模型里很常见：缓冲平衡、Langmuir 吸附、二次稳定性判据。
+% 3 次以上明确拒绝（闭式解在浮点下条件数极差，本仓不给「看起来精确」的近似）。
+% d = b² − 4ac 无量纲，(m)⁻¹·x² + x + (m) 齐次 ⇒ 根的量纲 = m（自动，不需要手推）
+% 一次方程同样走 roots（两个 API 都接受，方便统一写法）
+% 系数向量（低次到高次）：与 roots 互补 —— 一个给根，一个给系数。
+% 返回值是 1×k 行向量（与 roots 的列向量区分开，避免「系数当根」的形状混淆）。
+% 注意变量要**无量纲**：齐次多项式的各阶系数量纲不同（c_k 是 dim(poly)/dim(x)^k），
+% 而矩阵要求元素同量纲 —— 这是代数事实，不是实现限制。
+decl {
+    a : quadratic_coefficient [1/m];
+    b : linear_coefficient [1];
+    c : constant_term [m];
+    x : root_position [m];
+    s : normalized_root [1];
+}
+roots_quad = roots(a * x ^ 2 + b * x + c, x)
+roots_lin = roots(b * x + c, x)
+coeffs_quad = poly_coeffs(2 * s ^ 2 - 3 * s + 1, s)

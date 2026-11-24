@@ -1,0 +1,10 @@
+// EXPECT: MEASURE
+// GLYPH: x̅
+// CLASS: combining
+// NOTE: x_bar U+0078+0305
+// 自动生成，勿手改 —— 见 make_probes.py
+#![allow(warnings)]
+fn main() {
+    // 只测词法：这个字形能不能作为 Rust 源码活下来
+    println!("{}", stringify!(x̅));
+}

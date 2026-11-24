@@ -1,0 +1,720 @@
+// 由 build.rs 生成，勿手改。
+// 每条产物的源文件与量纲都写在注释里。
+
+/// 结果量纲：`s^-1`
+///
+/// ```text
+/// 2 \cdot \pi \cdot f
+/// ```
+///
+/// 源：`formulas/circuit.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn omega(f: f64, pi: f64) -> f64 {
+        2.0 * pi * f
+    }
+
+/// ∂omega/∂f，量纲 `1`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn omega__d_f(f: f64, pi: f64) -> f64 {
+        2.0 * pi
+    }
+
+/// ∂omega/∂pi，量纲 `s^-1`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn omega__d_pi(f: f64, pi: f64) -> f64 {
+        2.0 * f
+    }
+
+/// f32 变体：同一条公式的单精度版本（字面量带 `f32` 后缀）。
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn omega__f32(f: f32, pi: f32) -> f32 {
+        2.0f32 * pi * f
+    }
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn omega__batch(f: &[f64], pi: &[f64], out: &mut [f64]) {
+    let __n = out.len().min(f.len()).min(pi.len());
+    for __row in 0..__n {
+        out[__row] = omega(f[__row], pi[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn omega__batch_n<const __HIMARI_LEN: usize>(f: &[f64; __HIMARI_LEN], pi: &[f64; __HIMARI_LEN], out: &mut [f64; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = omega(f[__row], pi[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const OMEGA__LATEX: &str = "2 \\cdot \\pi \\cdot f";
+
+/// 结果量纲：`A`
+///
+/// ```text
+/// \frac{V}{R + j \cdot (2 \cdot \pi \cdot f) \cdot L}
+/// ```
+///
+/// 源：`formulas/circuit.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn current(R: f64, f: f64, L: f64, V: f64, pi: f64) -> (f64, f64) {
+        #[inline(always)]
+        fn __c_add(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+            (a.0 + b.0, a.1 + b.1)
+        }
+        #[inline(always)]
+        fn __c_div(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+            let m = b.0.abs().max(b.1.abs());
+            if m > 1e-150 && m < 1e150 {
+                let d = b.0 * b.0 + b.1 * b.1;
+                ((a.0 * b.0 + a.1 * b.1) / d, (a.1 * b.0 - a.0 * b.1) / d)
+            } else {
+                let (br, bi) = (b.0 / m, b.1 / m);
+                let s = m * (br * br + bi * bi);
+                ((a.0 * br + a.1 * bi) / s, (a.1 * br - a.0 * bi) / s)
+            }
+        }
+        #[inline(always)]
+        fn __c_mul(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+            (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0)
+        }
+        __c_div((V, 0.0), __c_add((R, 0.0), __c_mul(__c_mul((0.0, 1.0), __c_mul(__c_mul((2.0, 0.0), (pi, 0.0)), (f, 0.0))), (L, 0.0))))
+    }
+
+// 复数公式不生成解析导数：非解析算子（abs/arg/conj/re/im）的链式法则无定义。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn current__batch(R: &[f64], f: &[f64], L: &[f64], V: &[f64], pi: &[f64], out: &mut [(f64, f64)]) {
+    let __n = out.len().min(R.len()).min(f.len()).min(L.len()).min(V.len()).min(pi.len());
+    for __row in 0..__n {
+        out[__row] = current(R[__row], f[__row], L[__row], V[__row], pi[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn current__batch_n<const __HIMARI_LEN: usize>(R: &[f64; __HIMARI_LEN], f: &[f64; __HIMARI_LEN], L: &[f64; __HIMARI_LEN], V: &[f64; __HIMARI_LEN], pi: &[f64; __HIMARI_LEN], out: &mut [(f64, f64); __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = current(R[__row], f[__row], L[__row], V[__row], pi[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const CURRENT__LATEX: &str = "\\frac{V}{R + j \\cdot (2 \\cdot \\pi \\cdot f) \\cdot L}";
+
+/// 结果量纲：`A`
+///
+/// ```text
+/// \operatorname{abs}(\frac{V}{R + j \cdot (2 \cdot \pi \cdot f) \cdot L})
+/// ```
+///
+/// 源：`formulas/circuit.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn current_magnitude(R: f64, f: f64, L: f64, V: f64, pi: f64) -> (f64, f64) {
+        #[inline(always)]
+        fn __c_abs(a: (f64, f64)) -> (f64, f64) {
+            (a.0.hypot(a.1), 0.0)
+        }
+        #[inline(always)]
+        fn __c_add(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+            (a.0 + b.0, a.1 + b.1)
+        }
+        #[inline(always)]
+        fn __c_div(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+            let m = b.0.abs().max(b.1.abs());
+            if m > 1e-150 && m < 1e150 {
+                let d = b.0 * b.0 + b.1 * b.1;
+                ((a.0 * b.0 + a.1 * b.1) / d, (a.1 * b.0 - a.0 * b.1) / d)
+            } else {
+                let (br, bi) = (b.0 / m, b.1 / m);
+                let s = m * (br * br + bi * bi);
+                ((a.0 * br + a.1 * bi) / s, (a.1 * br - a.0 * bi) / s)
+            }
+        }
+        #[inline(always)]
+        fn __c_mul(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+            (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0)
+        }
+        __c_abs(__c_div((V, 0.0), __c_add((R, 0.0), __c_mul(__c_mul((0.0, 1.0), __c_mul(__c_mul((2.0, 0.0), (pi, 0.0)), (f, 0.0))), (L, 0.0)))))
+    }
+
+// 复数公式不生成解析导数：非解析算子（abs/arg/conj/re/im）的链式法则无定义。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn current_magnitude__batch(R: &[f64], f: &[f64], L: &[f64], V: &[f64], pi: &[f64], out: &mut [(f64, f64)]) {
+    let __n = out.len().min(R.len()).min(f.len()).min(L.len()).min(V.len()).min(pi.len());
+    for __row in 0..__n {
+        out[__row] = current_magnitude(R[__row], f[__row], L[__row], V[__row], pi[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn current_magnitude__batch_n<const __HIMARI_LEN: usize>(R: &[f64; __HIMARI_LEN], f: &[f64; __HIMARI_LEN], L: &[f64; __HIMARI_LEN], V: &[f64; __HIMARI_LEN], pi: &[f64; __HIMARI_LEN], out: &mut [(f64, f64); __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = current_magnitude(R[__row], f[__row], L[__row], V[__row], pi[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const CURRENT_MAGNITUDE__LATEX: &str = "\\operatorname{abs}(\\frac{V}{R + j \\cdot (2 \\cdot \\pi \\cdot f) \\cdot L})";
+
+/// 源：`formulas/dynamic_matrix.formula`（量纲 `kg·m·s^-3·K^-1`）
+/// 三对角阵 tridiag(a,b,c)_n（由模式矩阵生成）
+#[allow(non_snake_case, clippy::too_many_arguments)]
+pub fn diffusion_stencil(k: f64, n: usize) -> Vec<Vec<f64>> {
+    let av = {
+        -k
+    };
+    let bv = {
+        2.0 * k
+    };
+    let cv = {
+        -k
+    };
+    let mut m = vec![vec![0.0; n]; n];
+    #[allow(clippy::needless_range_loop)]
+    for __row in 0..n {
+        m[__row][__row] = bv;
+        let __next = __row + 1;
+        if __next < n {
+            m[__row][__next] = cv;
+            m[__next][__row] = av;
+        }
+    }
+    m
+}
+
+/// 结果量纲：`1`
+///
+/// ```text
+/// \operatorname{solve}(\begin{bmatrix}n \cdot \mathrm{intercept} + \mathrm{sum_x} \cdot \mathrm{slope} - \mathrm{sum_y} & \mathrm{sum_x} \cdot \mathrm{intercept} + \mathrm{sum_xx} \cdot \mathrm{slope} - \mathrm{sum_xy}\end{bmatrix}, \begin{bmatrix}\mathrm{intercept} & \mathrm{slope}\end{bmatrix})
+/// ```
+///
+/// 源：`formulas/least_squares.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn line_fit(n: f64, sum_x: f64, sum_y: f64, sum_xx: f64, sum_xy: f64) -> Vec<Vec<f64>> {
+        let __t0 = sum_y / n;
+        let __t1 = sum_x / n;
+        let __t2 = sum_x * __t0;
+        let __t3 = sum_xy - __t2;
+        let __t4 = sum_x * __t1;
+        let __t5 = sum_xx - __t4;
+        let __t6 = __t3 / __t5;
+        vec![vec![__t0 - __t1 * __t6], vec![__t6]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn line_fit__batch(n: &[f64], sum_x: &[f64], sum_y: &[f64], sum_xx: &[f64], sum_xy: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(n.len()).min(sum_x.len()).min(sum_y.len()).min(sum_xx.len()).min(sum_xy.len());
+    for __row in 0..__n {
+        out[__row] = line_fit(n[__row], sum_x[__row], sum_y[__row], sum_xx[__row], sum_xy[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn line_fit__batch_n<const __HIMARI_LEN: usize>(n: &[f64; __HIMARI_LEN], sum_x: &[f64; __HIMARI_LEN], sum_y: &[f64; __HIMARI_LEN], sum_xx: &[f64; __HIMARI_LEN], sum_xy: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = line_fit(n[__row], sum_x[__row], sum_y[__row], sum_xx[__row], sum_xy[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const LINE_FIT__LATEX: &str = "\\operatorname{solve}(\\begin{bmatrix}n \\cdot \\mathrm{intercept} + \\mathrm{sum_x} \\cdot \\mathrm{slope} - \\mathrm{sum_y} & \\mathrm{sum_x} \\cdot \\mathrm{intercept} + \\mathrm{sum_xx} \\cdot \\mathrm{slope} - \\mathrm{sum_xy}\\end{bmatrix}, \\begin{bmatrix}\\mathrm{intercept} & \\mathrm{slope}\\end{bmatrix})";
+
+/// 结果量纲：`1`
+///
+/// ```text
+/// \begin{bmatrix}\cos(\theta) & -\sin(\theta) \\ \sin(\theta) & \cos(\theta)\end{bmatrix}
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn rotation(theta: f64) -> Vec<Vec<f64>> {
+        let __t0 = (theta).cos();
+        let __t1 = (theta).sin();
+        vec![vec![__t0, -__t1], vec![__t1, __t0]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn rotation__batch(theta: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(theta.len());
+    for __row in 0..__n {
+        out[__row] = rotation(theta[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn rotation__batch_n<const __HIMARI_LEN: usize>(theta: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = rotation(theta[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const ROTATION__LATEX: &str = "\\begin{bmatrix}\\cos(\\theta) & -\\sin(\\theta) \\\\ \\sin(\\theta) & \\cos(\\theta)\\end{bmatrix}";
+
+/// 结果量纲：`1`
+///
+/// ```text
+/// \begin{bmatrix}\cos(\theta) & -\sin(\theta) \\ \sin(\theta) & \cos(\theta)\end{bmatrix}^{T} \cdot \begin{bmatrix}\cos(\theta) & -\sin(\theta) \\ \sin(\theta) & \cos(\theta)\end{bmatrix}
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn rotation_orthogonality(theta: f64) -> Vec<Vec<f64>> {
+        let __t0 = (theta).cos();
+        let __t1 = (theta).sin();
+        let __t2 = -__t1;
+        vec![vec![__t0 * __t0 + __t1 * __t1, __t0 * __t2 + __t1 * __t0], vec![__t2 * __t0 + __t0 * __t1, __t2 * __t2 + __t0 * __t0]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn rotation_orthogonality__batch(theta: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(theta.len());
+    for __row in 0..__n {
+        out[__row] = rotation_orthogonality(theta[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn rotation_orthogonality__batch_n<const __HIMARI_LEN: usize>(theta: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = rotation_orthogonality(theta[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const ROTATION_ORTHOGONALITY__LATEX: &str = "\\begin{bmatrix}\\cos(\\theta) & -\\sin(\\theta) \\\\ \\sin(\\theta) & \\cos(\\theta)\\end{bmatrix}^{T} \\cdot \\begin{bmatrix}\\cos(\\theta) & -\\sin(\\theta) \\\\ \\sin(\\theta) & \\cos(\\theta)\\end{bmatrix}";
+
+/// 结果量纲：`kg·s^-2`
+///
+/// ```text
+/// \begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix}
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness(k: f64) -> Vec<Vec<f64>> {
+        vec![vec![4.0 * k, k], vec![k, 3.0 * k]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness__batch(k: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(k.len());
+    for __row in 0..__n {
+        out[__row] = stiffness(k[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness__batch_n<const __HIMARI_LEN: usize>(k: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = stiffness(k[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const STIFFNESS__LATEX: &str = "\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix}";
+
+/// 结果量纲：`kg^2·s^-4`
+///
+/// ```text
+/// \begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix}^{T} \cdot \begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix}
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn N(k: f64) -> Vec<Vec<f64>> {
+        let __t0 = 4.0 * k;
+        let __t1 = 3.0 * k;
+        vec![vec![__t0 * __t0 + k * k, __t0 * k + k * __t1], vec![k * __t0 + __t1 * k, k * k + __t1 * __t1]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn N__batch(k: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(k.len());
+    for __row in 0..__n {
+        out[__row] = N(k[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn N__batch_n<const __HIMARI_LEN: usize>(k: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = N(k[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const N__LATEX: &str = "\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix}^{T} \\cdot \\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix}";
+
+/// 结果量纲：`kg^-1·s^2`
+///
+/// ```text
+/// \operatorname{inv}(\begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix})
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness_inverse(k: f64) -> Vec<Vec<f64>> {
+        let __t0 = 3.0 * k;
+        let __t1 = 4.0 * k;
+        let __t2 = __t1 * __t0;
+        let __t3 = k * k;
+        let __t4 = -__t3;
+        let __t5 = __t2 + __t4;
+        let __t6 = -k;
+        let __t7 = __t6 / __t5;
+        vec![vec![__t0 / __t5, __t7], vec![__t7, __t1 / __t5]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness_inverse__batch(k: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(k.len());
+    for __row in 0..__n {
+        out[__row] = stiffness_inverse(k[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness_inverse__batch_n<const __HIMARI_LEN: usize>(k: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = stiffness_inverse(k[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const STIFFNESS_INVERSE__LATEX: &str = "\\operatorname{inv}(\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix})";
+
+/// 结果量纲：`1`
+///
+/// ```text
+/// \begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix} \cdot \operatorname{inv}(\begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix})
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness_identity(k: f64) -> Vec<Vec<f64>> {
+        let __t0 = 4.0 * k;
+        let __t1 = 3.0 * k;
+        let __t2 = __t0 * __t1;
+        let __t3 = k * k;
+        let __t4 = -__t3;
+        let __t5 = __t2 + __t4;
+        let __t6 = -k;
+        let __t7 = __t6 / __t5;
+        vec![vec![__t0 * (__t1 / __t5) + k * __t7, __t0 * __t7 + k * (__t0 / __t5)], vec![k * (__t1 / __t5) + __t1 * __t7, k * __t7 + __t1 * (__t0 / __t5)]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness_identity__batch(k: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(k.len());
+    for __row in 0..__n {
+        out[__row] = stiffness_identity(k[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn stiffness_identity__batch_n<const __HIMARI_LEN: usize>(k: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = stiffness_identity(k[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const STIFFNESS_IDENTITY__LATEX: &str = "\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix} \\cdot \\operatorname{inv}(\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix})";
+
+/// 结果量纲：`kg·m·s^-2`
+///
+/// ```text
+/// \begin{bmatrix}4 \cdot k & k \\ k & 3 \cdot k\end{bmatrix} \cdot \begin{bmatrix}\mathrm{x_1} \\ \mathrm{x_2}\end{bmatrix}
+/// ```
+///
+/// 源：`formulas/matrices.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn nodal_forces(k: f64, x_1: f64, x_2: f64) -> Vec<Vec<f64>> {
+        vec![vec![4.0 * k * x_1 + k * x_2], vec![k * x_1 + 3.0 * k * x_2]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn nodal_forces__batch(k: &[f64], x_1: &[f64], x_2: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(k.len()).min(x_1.len()).min(x_2.len());
+    for __row in 0..__n {
+        out[__row] = nodal_forces(k[__row], x_1[__row], x_2[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn nodal_forces__batch_n<const __HIMARI_LEN: usize>(k: &[f64; __HIMARI_LEN], x_1: &[f64; __HIMARI_LEN], x_2: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = nodal_forces(k[__row], x_1[__row], x_2[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const NODAL_FORCES__LATEX: &str = "\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix} \\cdot \\begin{bmatrix}\\mathrm{x_1} \\\\ \\mathrm{x_2}\\end{bmatrix}";
+
+/// 结果量纲：`1`
+///
+/// ```text
+/// \operatorname{roots}(a \cdot x^{2} + b \cdot x + c, x)
+/// ```
+///
+/// 源：`formulas/roots.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn quadratic_roots(a: f64, b: f64, c: f64) -> Result<Vec<Vec<f64>>, himari::runtime::NumericError> {
+        (|| { himari::runtime::into_matrix(Ok::<_, himari::Error>(himari::Value::Matrix(vec![vec![himari::C::real(himari::runtime::real_quadratic_root_values(true, himari::runtime::scalar_result({
+        a
+    })?, himari::runtime::scalar_result({
+        b
+    })?, himari::runtime::scalar_result({
+        c
+    })?)?)],vec![himari::C::real(himari::runtime::real_quadratic_root_values(false, himari::runtime::scalar_result({
+        a
+    })?, himari::runtime::scalar_result({
+        b
+    })?, himari::runtime::scalar_result({
+        c
+    })?)?)]]))?) })()
+    }
+
+// Runtime matrix/vector formulas do not emit scalar batch or f32 variants.
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const QUADRATIC_ROOTS__LATEX: &str = "\\operatorname{roots}(a \\cdot x^{2} + b \\cdot x + c, x)";
+
+/// 结果量纲：`m`
+///
+/// ```text
+/// \operatorname{solve}(A, b)
+/// ```
+///
+/// 源：`formulas/runtime_matrix.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_displacements(A: &[Vec<f64>], b: &[f64]) -> Result<Vec<f64>, himari::runtime::NumericError> {
+        (|| { himari::runtime::into_column(himari::runtime::solve(&(himari::runtime::matrix_from_f64(A))?, &(himari::runtime::column_from_f64(b))?)?) })()
+    }
+
+// Runtime matrix/vector formulas do not emit scalar batch or f32 variants.
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const RUNTIME_DISPLACEMENTS__LATEX: &str = "\\operatorname{solve}(A, b)";
+
+/// 结果量纲：`kg·m·s^-2`
+///
+/// ```text
+/// A \cdot x
+/// ```
+///
+/// 源：`formulas/runtime_matrix.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_traction(A: &[Vec<f64>], x: &[f64]) -> Result<Vec<f64>, himari::runtime::NumericError> {
+        (|| { himari::runtime::into_column(himari::runtime::mul(&(himari::runtime::matrix_from_f64(A))?, &(himari::runtime::column_from_f64(x))?)?) })()
+    }
+
+// Runtime matrix/vector formulas do not emit scalar batch or f32 variants.
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const RUNTIME_TRACTION__LATEX: &str = "A \\cdot x";
+
+/// 结果量纲：`kg^-1·s^2`
+///
+/// ```text
+/// \operatorname{inv}(A)
+/// ```
+///
+/// 源：`formulas/runtime_matrix.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_inverse(A: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, himari::runtime::NumericError> {
+        (|| { himari::runtime::into_matrix(himari::runtime::inv(&(himari::runtime::matrix_from_f64(A))?)?) })()
+    }
+
+// Runtime matrix/vector formulas do not emit scalar batch or f32 variants.
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const RUNTIME_INVERSE__LATEX: &str = "\\operatorname{inv}(A)";
+
+/// 结果量纲：`kg·s^-2`
+///
+/// ```text
+/// A_{\mathrm{1}, \mathrm{1}}
+/// ```
+///
+/// 源：`formulas/runtime_matrix.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_element(A: &[Vec<f64>]) -> Result<f64, himari::runtime::NumericError> {
+        (|| { himari::runtime::into_scalar(himari::runtime::index(&(himari::runtime::matrix_from_f64(A))?, &[1, 1])?) })()
+    }
+
+// 不生成解析导数：表达式含不可符号化的算子（算子/求和/积分）。
+
+// Runtime matrix/vector formulas do not emit scalar batch or f32 variants.
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const RUNTIME_ELEMENT__LATEX: &str = "A_{\\mathrm{1}, \\mathrm{1}}";
+
+/// 结果量纲：`m`
+///
+/// ```text
+/// \operatorname{solve}(\begin{bmatrix}(\mathrm{k_1} + \mathrm{k_2}) \cdot \mathrm{u_1} - \mathrm{k_2} \cdot \mathrm{u_2} - \mathrm{F_1} & -\mathrm{k_2} \cdot \mathrm{u_1} + (\mathrm{k_2} + \mathrm{k_3}) \cdot \mathrm{u_2} - \mathrm{k_3} \cdot \mathrm{u_3} - \mathrm{F_2} & -\mathrm{k_3} \cdot \mathrm{u_2} + (\mathrm{k_3} + \mathrm{k_4}) \cdot \mathrm{u_3} - \mathrm{F_3}\end{bmatrix}, \begin{bmatrix}\mathrm{u_1} & \mathrm{u_2} & \mathrm{u_3}\end{bmatrix})
+/// ```
+///
+/// 源：`formulas/springs.formula`
+#[inline]
+#[allow(non_snake_case, unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn displacements(k_1: f64, k_2: f64, k_3: f64, k_4: f64, F_1: f64, F_2: f64, F_3: f64) -> Vec<Vec<f64>> {
+        let __t0 = k_1 + k_2;
+        let __t1 = F_1 / __t0;
+        let __t2 = -k_2;
+        let __t3 = __t2 / __t0;
+        let __t4 = __t2 * __t1;
+        let __t5 = F_2 - __t4;
+        let __t6 = k_2 + k_3;
+        let __t7 = __t2 * __t3;
+        let __t8 = __t6 - __t7;
+        let __t9 = __t5 / __t8;
+        let __t10 = -k_3;
+        let __t11 = __t10 / __t8;
+        let __t12 = __t10 * __t9;
+        let __t13 = F_3 - __t12;
+        let __t14 = k_3 + k_4;
+        let __t15 = __t10 * __t11;
+        let __t16 = __t14 - __t15;
+        let __t17 = __t13 / __t16;
+        vec![vec![__t1 - __t3 * __t9 - -(__t3 * __t11) * __t17], vec![__t9 - __t11 * __t17], vec![__t17]]
+    }
+
+// 矩阵值公式不生成解析导数：元素级偏导不是矩阵（雅可比才是），该车道待做。
+
+/// 批量入口：公共长度一次算定，供 LLVM 向量化。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn displacements__batch(k_1: &[f64], k_2: &[f64], k_3: &[f64], k_4: &[f64], F_1: &[f64], F_2: &[f64], F_3: &[f64], out: &mut [Vec<Vec<f64>>]) {
+    let __n = out.len().min(k_1.len()).min(k_2.len()).min(k_3.len()).min(k_4.len()).min(F_1.len()).min(F_2.len()).min(F_3.len());
+    for __row in 0..__n {
+        out[__row] = displacements(k_1[__row], k_2[__row], k_3[__row], k_4[__row], F_1[__row], F_2[__row], F_3[__row]);
+    }
+}
+/// 常量长度批量入口：长度进类型参数，边界检查可全部消除。
+#[allow(non_snake_case, unused_variables)]
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn displacements__batch_n<const __HIMARI_LEN: usize>(k_1: &[f64; __HIMARI_LEN], k_2: &[f64; __HIMARI_LEN], k_3: &[f64; __HIMARI_LEN], k_4: &[f64; __HIMARI_LEN], F_1: &[f64; __HIMARI_LEN], F_2: &[f64; __HIMARI_LEN], F_3: &[f64; __HIMARI_LEN], out: &mut [Vec<Vec<f64>>; __HIMARI_LEN]) {
+    for __row in 0..__HIMARI_LEN {
+        out[__row] = displacements(k_1[__row], k_2[__row], k_3[__row], k_4[__row], F_1[__row], F_2[__row], F_3[__row]);
+    }
+}
+
+/// 源公式（回写），供文档/UI 复用同一份真源。
+pub const DISPLACEMENTS__LATEX: &str = "\\operatorname{solve}(\\begin{bmatrix}(\\mathrm{k_1} + \\mathrm{k_2}) \\cdot \\mathrm{u_1} - \\mathrm{k_2} \\cdot \\mathrm{u_2} - \\mathrm{F_1} & -\\mathrm{k_2} \\cdot \\mathrm{u_1} + (\\mathrm{k_2} + \\mathrm{k_3}) \\cdot \\mathrm{u_2} - \\mathrm{k_3} \\cdot \\mathrm{u_3} - \\mathrm{F_2} & -\\mathrm{k_3} \\cdot \\mathrm{u_2} + (\\mathrm{k_3} + \\mathrm{k_4}) \\cdot \\mathrm{u_3} - \\mathrm{F_3}\\end{bmatrix}, \\begin{bmatrix}\\mathrm{u_1} & \\mathrm{u_2} & \\mathrm{u_3}\\end{bmatrix})";
+

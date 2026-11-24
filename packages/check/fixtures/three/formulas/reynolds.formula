@@ -1,0 +1,9 @@
+% 雷诺数：惯性力与黏性力之比 —— Buckingham Π 的教科书例子。
+% 四个变量、三个独立量纲 → 恰好一个无量纲群（就是 Re 本身）。
+decl {
+    rho : fluid_density [kg/m^3];
+    v : flow_speed [m/s];
+    L : characteristic_length [m];
+    mu : dynamic_viscosity [Pa*s];
+}
+Re = rho * v * L / mu

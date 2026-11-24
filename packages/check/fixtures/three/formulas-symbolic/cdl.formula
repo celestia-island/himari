@@ -1,0 +1,9 @@
+% 双电层电容电流：i_c = C_dl·∂E/∂t —— 符号算子 ∂ 的第一个真实用例。
+% 符号公式层：只做 parse + 量纲检查 + LaTeX/MathML 渲染，不生成代码
+% （∂ 的离散化策略由使用方选择：显式 Euler / Crank-Nicolson / BDF）。
+decl {
+    C_dl : double_layer_capacitance [C/V];
+    E : potential [V];
+    t : time [s];
+}
+i_c = C_dl * ∂(E, t)

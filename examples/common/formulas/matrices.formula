@@ -1,0 +1,17 @@
+% 常见矩阵表达：旋转、转置、矩阵积、显式逆与矩阵作用于列向量。
+decl {
+    theta : rotation_angle [rad];
+    k : stiffness [N/m];
+    x_1 : coordinate_1 [m];
+    x_2 : coordinate_2 [m];
+}
+rotation = [ cos(theta), -sin(theta) ;
+  sin(theta), cos(theta) ]
+rotation_orthogonality = rotation' * rotation
+stiffness = [ 4 * k, k ;
+  k,     3 * k ]
+N = stiffness' * stiffness
+stiffness_inverse = inv(stiffness)
+stiffness_identity = stiffness * stiffness_inverse
+nodal_forces = stiffness * [ x_1 ;
+  x_2 ]

@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "name": "rho", "line": 11, "dim": "kg·m^-3", "params": ["rho_0", "h", "H"], "latex": "\\rho_0 \\cdot \\exp(\\frac{-h}{H})", "mathml": "<math><mrow><mi>rho_0</mi><mo>⁢</mo><mrow><mi>exp</mi><mo>⁡</mo><mo>(</mo><mfrac><mrow><mo>-</mo><mi>h</mi></mrow><mi>H</mi></mfrac><mo>)</mo></mrow></mrow></math>" },
+    { "name": "drag", "line": 13, "dim": "kg·m·s^-2", "params": ["rho_0", "h", "H", "Cd", "A", "v"], "latex": "0.5 \\cdot \\rho_0 \\cdot \\exp(\\frac{-h}{H}) \\cdot v^{2} \\cdot \\mathrm{Cd} \\cdot A", "mathml": "<math><mrow><mrow><mrow><mrow><mrow><mn>0.5</mn><mo>⁢</mo><mi>rho_0</mi></mrow><mo>⁢</mo><mrow><mi>exp</mi><mo>⁡</mo><mo>(</mo><mfrac><mrow><mo>-</mo><mi>h</mi></mrow><mi>H</mi></mfrac><mo>)</mo></mrow></mrow><mo>⁢</mo><msup><mi>v</mi><mn>2</mn></msup></mrow><mo>⁢</mo><mi>Cd</mi></mrow><mo>⁢</mo><mi>A</mi></mrow></math>" },
+    { "name": "gm", "line": 14, "dim": "kg^(1/2)·m^(-3/2)", "params": ["rho_0", "Cd"], "latex": "\\sqrt{\\rho_0 \\cdot \\mathrm{Cd}}", "mathml": "<math><mrow><mi>sqrt</mi><mo>⁡</mo><mo>(</mo><mrow><mi>rho_0</mi><mo>⁢</mo><mi>Cd</mi></mrow><mo>)</mo></mrow></math>" }
+  ]
+}

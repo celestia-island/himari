@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "line_fit", "line": 11, "dim": "1", "params": ["n", "sum_x", "sum_y", "sum_xx", "sum_xy"], "latex": "\\operatorname{solve}(\\begin{bmatrix}n \\cdot \\mathrm{intercept} + \\mathrm{sum_x} \\cdot \\mathrm{slope} - \\mathrm{sum_y} & \\mathrm{sum_x} \\cdot \\mathrm{intercept} + \\mathrm{sum_xx} \\cdot \\mathrm{slope} - \\mathrm{sum_xy}\\end{bmatrix}, \\begin{bmatrix}\\mathrm{intercept} & \\mathrm{slope}\\end{bmatrix})", "mathml": "<math><mrow><mi>solve</mi><mo>⁡</mo><mo>(</mo><mtable><mtr><mtd><mrow><mrow><mrow><mi>n</mi><mo>⁢</mo><mi>intercept</mi></mrow><mo>+</mo><mrow><mi>sum_x</mi><mo>⁢</mo><mi>slope</mi></mrow></mrow><mo>-</mo><mi>sum_y</mi></mrow></mtd><mtd><mrow><mrow><mrow><mi>sum_x</mi><mo>⁢</mo><mi>intercept</mi></mrow><mo>+</mo><mrow><mi>sum_xx</mi><mo>⁢</mo><mi>slope</mi></mrow></mrow><mo>-</mo><mi>sum_xy</mi></mrow></mtd></mtr></mtable><mo>,</mo><mtable><mtr><mtd><mi>intercept</mi></mtd><mtd><mi>slope</mi></mtd></mtr></mtable><mo>)</mo></mrow></math>" }
+  ]
+}

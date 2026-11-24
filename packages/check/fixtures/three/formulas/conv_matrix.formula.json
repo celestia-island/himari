@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "H", "line": 9, "dim": "1", "params": ["h_0", "h_1", "h_2", "h_3"], "latex": "\\begin{bmatrix}\\mathrm{h_0} & \\mathrm{h_1} & \\mathrm{h_2} & \\mathrm{h_3} \\\\ \\mathrm{h_3} & \\mathrm{h_0} & \\mathrm{h_1} & \\mathrm{h_2} \\\\ \\mathrm{h_2} & \\mathrm{h_3} & \\mathrm{h_0} & \\mathrm{h_1} \\\\ \\mathrm{h_1} & \\mathrm{h_2} & \\mathrm{h_3} & \\mathrm{h_0}\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mi>h_0</mi></mtd><mtd><mi>h_1</mi></mtd><mtd><mi>h_2</mi></mtd><mtd><mi>h_3</mi></mtd></mtr><mtr><mtd><mi>h_3</mi></mtd><mtd><mi>h_0</mi></mtd><mtd><mi>h_1</mi></mtd><mtd><mi>h_2</mi></mtd></mtr><mtr><mtd><mi>h_2</mi></mtd><mtd><mi>h_3</mi></mtd><mtd><mi>h_0</mi></mtd><mtd><mi>h_1</mi></mtd></mtr><mtr><mtd><mi>h_1</mi></mtd><mtd><mi>h_2</mi></mtd><mtd><mi>h_3</mi></mtd><mtd><mi>h_0</mi></mtd></mtr></mtable></math>" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "name": "Z_branch", "line": 15, "dim": "kg·m^2·s^-3·A^-2", "params": ["R", "w", "L"], "latex": "R + j \\cdot w \\cdot L", "mathml": "<math><mrow><mi>R</mi><mo>+</mo><mrow><mrow><mi>j</mi><mo>⁢</mo><mi>w</mi></mrow><mo>⁢</mo><mi>L</mi></mrow></mrow></math>" },
+    { "name": "I", "line": 17, "dim": "A", "params": ["R", "w", "L", "V"], "latex": "\\operatorname{solve}(\\begin{bmatrix}\\mathrm{Z_branch} \\cdot \\mathrm{I1} - V & \\mathrm{Z_branch} \\cdot \\mathrm{I1} - R \\cdot \\mathrm{I2}\\end{bmatrix}, \\begin{bmatrix}\\mathrm{I1} & \\mathrm{I2}\\end{bmatrix})", "mathml": "<math><mrow><mi>solve</mi><mo>⁡</mo><mo>(</mo><mtable><mtr><mtd><mrow><mrow><mi>Z_branch</mi><mo>⁢</mo><mi>I1</mi></mrow><mo>-</mo><mi>V</mi></mrow></mtd><mtd><mrow><mrow><mi>Z_branch</mi><mo>⁢</mo><mi>I1</mi></mrow><mo>-</mo><mrow><mi>R</mi><mo>⁢</mo><mi>I2</mi></mrow></mrow></mtd></mtr></mtable><mo>,</mo><mtable><mtr><mtd><mi>I1</mi></mtd><mtd><mi>I2</mi></mtd></mtr></mtable><mo>)</mo></mrow></math>" },
+    { "name": "Zm", "line": 18, "dim": "kg·m^2·s^-3·A^-2", "params": ["R", "w", "L"], "latex": "\\begin{bmatrix}\\mathrm{Z_branch} & R \\\\ -R & \\mathrm{Z_branch}\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mi>Z_branch</mi></mtd><mtd><mi>R</mi></mtd></mtr><mtr><mtd><mrow><mo>-</mo><mi>R</mi></mrow></mtd><mtd><mi>Z_branch</mi></mtd></mtr></mtable></math>" }
+  ]
+}

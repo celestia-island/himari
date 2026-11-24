@@ -1,0 +1,8 @@
+% 动态尺寸模式矩阵：一维扩散/热传导中常见的对称三对角 stencil。
+decl {
+    k : conductivity [W/m/K];
+}
+diffusion_stencil = [ 2 * k, -k,    ...,   0 ;
+  -k,    2 * k, -k,    ... ;
+  ...,   -k,    2 * k, -k ;
+  0,     ...,   -k,    2 * k ]

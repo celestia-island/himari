@@ -1,0 +1,20 @@
+[package]
+name = "himari-loader"
+version = "0.1.0"
+edition.workspace = true
+description = "Cross-file .formula library loader for himari: use directives, cycle detection, content locks."
+rust-version.workspace = true
+license-file.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+himari = { workspace = true, features = ["std"] }
+himari-latex = { workspace = true, features = ["std"] }
+himari-matlab = { workspace = true, features = ["std"] }

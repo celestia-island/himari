@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "nernst", "line": 11, "dim": "kg·m^2·s^-3·A^-1", "params": ["E0", "R", "T", "n", "F", "a_ox", "a_red"], "latex": "\\mathrm{E0} - \\frac{R \\cdot T}{n \\cdot F} \\cdot \\ln(\\frac{\\mathrm{a_ox}}{\\mathrm{a_red}})", "mathml": "<math><mrow><mi>E0</mi><mo>-</mo><mrow><mfrac><mrow><mi>R</mi><mo>⁢</mo><mi>T</mi></mrow><mrow><mi>n</mi><mo>⁢</mo><mi>F</mi></mrow></mfrac><mo>⁢</mo><mrow><mi>ln</mi><mo>⁡</mo><mo>(</mo><mfrac><mi>a_ox</mi><mi>a_red</mi></mfrac><mo>)</mo></mrow></mrow></mrow></math>" }
+  ]
+}

@@ -1,0 +1,19 @@
+% 复数线性方程组：交流电路的节点分析（EIS 建模的骨架）。
+% 阻抗是复数（`j` 是虚数单位），方程组的解是**复数列向量** ——
+% 值层一直支持，发射层现在也支持（返回 `Vec<Vec<(f64, f64)>>`）。
+% 求解量必须声明量纲，而阻抗与电流各自量纲不同 ⇒ 这里用同一量纲的电流。
+% 支路阻抗是复数：Z = R + jωL（`j` 无量纲，乘进量纲里不改变它）
+% 节点方程（写成「式 = 0」）：Z·I1 − V = 0，Z·I1 − (R)·I2 = 0
+% 复数矩阵表达式（元素是 (实部, 虚部) 对）
+decl {
+    R : resistance [V/A];
+    w : angular_frequency [Hz];
+    L : inductance [V/A*s];
+    V : source_voltage [V];
+    I1 : branch_current_1 [A];
+    I2 : branch_current_2 [A];
+}
+Z_branch = R + j * w * L
+I = solve([ Z_branch * I1 - V, Z_branch * I1 - R * I2 ], [ I1, I2 ])
+Zm = [ Z_branch, R ;
+  -R,       Z_branch ]

@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "name": "fick2_lhs", "line": 6, "dim": "m^-3·s^-1·mol", "params": ["c"], "latex": "\\frac{\\partial c}{\\partial t}", "mathml": "<math><mfrac><mrow><mo>∂</mo><mi>c</mi></mrow><mrow><mo>∂</mo><mi>t</mi></mrow></mfrac></math>" },
+    { "name": "fick2_rhs", "line": 8, "dim": "m^-3·s^-1·mol", "params": ["c", "D"], "latex": "D \\cdot \\nabla^2 c", "mathml": "<math><mrow><mi>D</mi><mo>⁢</mo><mrow><msup><mo>∇</mo><mn>2</mn></msup><mi>c</mi></mrow></mrow></math>" }
+  ]
+}

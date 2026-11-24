@@ -1,0 +1,15 @@
+% 再入段三个常用量（航天侧）：终端速度、动压、气动阻力。
+% 终端速度的物理含义是"阻力 = 重力"，main 里会用这个不变量自检。
+    % 注意：`rho` 来自 lib/atmosphere.formula（跨文件库），这里不再声明
+use "lib/atmosphere.formula"
+
+decl {
+    m : vehicle_mass [kg];
+    g : gravity [m/s^2];
+    Cd : drag_coefficient [1];
+    A : reference_area [m^2];
+    v : speed [m/s];
+}
+v_terminal = sqrt(2 * m * g / (rho * Cd * A))
+q_dyn = 0.5 * rho * v ^ 2
+drag = q_dyn * Cd * A

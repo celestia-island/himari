@@ -1,0 +1,8 @@
+% Fick 第二定律：∂c/∂t = D·∇²c —— 符号层（抛物型 PDE，离散化交给求解器）。
+decl {
+    c : concentration [mol/m^3];
+    t : time [s];
+    D : diffusivity [m^2/s];
+}
+fick2_lhs = ∂(c, t)
+fick2_rhs = D * ∇^2(c)

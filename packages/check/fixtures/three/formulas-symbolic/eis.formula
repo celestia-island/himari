@@ -1,0 +1,7 @@
+% EIS 复阻抗：Z = R_s + j·X（j 为保留虚数单位，恒无量纲）。
+% 走符号/求值层（复数求值），不生成标量 Rust 代码。
+decl {
+    R_s : series_resistance [V/A];
+    X : reactance [V/A];
+}
+Z = R_s + j * X

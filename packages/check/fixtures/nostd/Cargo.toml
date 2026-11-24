@@ -1,0 +1,22 @@
+[package]
+name = "himari-fixture-nostd"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+# no_std 库不能进 test harness（harness 要 std）：只做**编译门**
+test = false
+doctest = false
+
+[dependencies]
+
+# Workspace declaration (a local `^0.2` copy previously made the workspace entry unused).
+# The fixture consumes the no_std build of the parser chain, so default features are off.
+himari = { workspace = true }
+himari-matlab = { workspace = true }
+libm = { workspace = true }
+[build-dependencies]
+
+himari-buildhelper = { workspace = true }

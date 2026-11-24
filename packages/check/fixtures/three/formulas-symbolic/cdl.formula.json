@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "i_c", "line": 8, "dim": "A", "params": ["C_dl", "E"], "latex": "\\mathrm{C_dl} \\cdot (\\frac{\\partial E}{\\partial t})", "mathml": "<math><mrow><mi>C_dl</mi><mo>⁢</mo><mfrac><mrow><mo>∂</mo><mi>E</mi></mrow><mrow><mo>∂</mo><mi>t</mi></mrow></mfrac></mrow></math>" }
+  ]
+}

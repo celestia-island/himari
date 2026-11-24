@@ -1,0 +1,8 @@
+% 结构侧：用符号线性求解直接写"配平"条件（solve 是 IR 级展开，解出来的仍是公式）
+%   k·x − F = 0  →  x = F/k（受力下的静位移）
+decl {
+    k : stiffness [N/m];
+    F : applied_force [N];
+    x : deflection [m];
+}
+x_static = solve(k * x - F, x)

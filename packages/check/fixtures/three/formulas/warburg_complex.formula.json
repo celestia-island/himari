@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "name": "Z_c", "line": 8, "dim": "kg·m^2·s^-3·A^-2", "params": ["sigma", "omega"], "latex": "\\frac{\\sigma}{(j \\cdot \\omega)^{\\frac{1}{2}}}", "mathml": "<math><mfrac><mi>sigma</mi><msup><mrow><mi>j</mi><mo>⁢</mo><mi>omega</mi></mrow><mfrac><mn>1</mn><mn>2</mn></mfrac></msup></mfrac></math>" },
+    { "name": "Z_mag", "line": 10, "dim": "kg·m^2·s^-3·A^-2", "params": ["sigma", "omega"], "latex": "\\operatorname{abs}(\\mathrm{Z_c})", "mathml": "<math><mrow><mi>abs</mi><mo>⁡</mo><mo>(</mo><mi>Z_c</mi><mo>)</mo></mrow></math>" }
+  ]
+}

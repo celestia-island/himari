@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "p3", "line": 7, "dim": "1", "params": ["x", "a", "b"], "latex": "a \\cdot x^{3} + b \\cdot x", "mathml": "<math><mrow><mrow><mi>a</mi><mo>⁢</mo><msup><mi>x</mi><mn>3</mn></msup></mrow><mo>+</mo><mrow><mi>b</mi><mo>⁢</mo><mi>x</mi></mrow></mrow></math>" }
+  ]
+}

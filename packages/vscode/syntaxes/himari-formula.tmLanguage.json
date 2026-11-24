@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Himari Formula",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#decl" },
+    { "include": "#matrix" },
+    { "include": "#operator" },
+    { "include": "#latex-command" },
+    { "include": "#greek" },
+    { "include": "#number" },
+    { "include": "#ident" }
+  ],
+  "repository": {
+    "comment": { "match": "%.*$", "name": "comment.line.percentage.himari" },
+    "decl": {
+      "begin": "\\bdecl\\s*\\{",
+      "end": "\\}",
+      "name": "meta.declaration.himari",
+      "patterns": [
+        { "match": "\\b[A-Za-z_][A-Za-z0-9_]*", "name": "variable.other.himari" },
+        { "match": "\\[[A-Za-z0-9/^*]+\\]", "name": "constant.character.unit.himari" },
+        { "match": ":", "name": "keyword.operator.colon.himari" }
+      ]
+    },
+    "matrix": {
+      "begin": "\\[|\\\\begin\\{bmatrix\\}",
+      "end": "\\]|\\\\end\\{bmatrix\\}",
+      "name": "meta.matrix.himari",
+      "patterns": [
+        { "match": "\\.\\.\\.|⋯|…|\\\\cdots|\\\\vdots|\\\\ddots", "name": "keyword.operator.ellipsis.himari" },
+        { "match": "[;&\\\\]", "name": "keyword.operator.separator.himari" }
+      ]
+    },
+    "operator": {
+      "match": "∂|∇|Δ|√|∑|∫|\\b(ddt|grad|lap|sum|intg)\\b",
+      "name": "keyword.operator.math.himari"
+    },
+    "latex-command": { "match": "\\\\[A-Za-z]+", "name": "support.function.latex.himari" },
+    "greek": { "match": "[α-ωΑ-Ω]", "name": "constant.character.greek.himari" },
+    "number": { "match": "\\d+(\\.\\d+)?([eE][+-]?\\d+)?", "name": "constant.numeric.himari" },
+    "ident": { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "variable.other.himari" }
+  },
+  "scopeName": "source.himari-formula"
+}

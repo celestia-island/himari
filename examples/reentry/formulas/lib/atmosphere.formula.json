@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "rho", "line": 7, "dim": "kg·m^-3", "params": ["rho_0", "h", "H"], "latex": "\\rho_0 \\cdot \\exp(\\frac{-h}{H})", "mathml": "<math><mrow><mi>rho_0</mi><mo>⁢</mo><mrow><mi>exp</mi><mo>⁡</mo><mo>(</mo><mfrac><mrow><mo>-</mo><mi>h</mi></mrow><mi>H</mi></mfrac><mo>)</mo></mrow></mrow></math>" }
+  ]
+}

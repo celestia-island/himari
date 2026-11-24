@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "tafel", "line": 8, "dim": "kg·m^2·s^-3·A^-1", "params": ["a", "b", "i", "i_0"], "latex": "a + b \\cdot \\ln(\\frac{i}{\\mathrm{i_0}})", "mathml": "<math><mrow><mi>a</mi><mo>+</mo><mrow><mi>b</mi><mo>⁢</mo><mrow><mi>ln</mi><mo>⁡</mo><mo>(</mo><mfrac><mi>i</mi><mi>i_0</mi></mfrac><mo>)</mo></mrow></mrow></mrow></math>" }
+  ]
+}

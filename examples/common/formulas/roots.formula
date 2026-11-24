@@ -1,0 +1,8 @@
+% 二次方程的两个根，按 −b−√Δ 优先的顺序返回列向量；稳定算法避免相消。
+decl {
+    a : quadratic_coefficient [1];
+    b : linear_coefficient [1];
+    c : constant_coefficient [1];
+    x : unknown [1];
+}
+quadratic_roots = roots(a * x ^ 2 + b * x + c, x)

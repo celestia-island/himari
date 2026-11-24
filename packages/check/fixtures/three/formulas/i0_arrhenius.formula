@@ -1,0 +1,8 @@
+% 交换电流密度的 Arrhenius 型温度依赖：i₀ = A·exp(-Eₐ/RT)。
+decl {
+    A : prefactor [A/m^2];
+    E_a : activation_energy [J/mol];
+    R : gas_constant [J/mol/K];
+    T : temperature [K];
+}
+i0_arrhenius = A * exp(-(E_a / (R * T)))

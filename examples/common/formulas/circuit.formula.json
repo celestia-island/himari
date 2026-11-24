@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "name": "omega", "line": 8, "dim": "s^-1", "params": ["f", "pi"], "latex": "2 \\cdot \\pi \\cdot f", "mathml": "<math><mrow><mrow><mn>2</mn><mo>⁢</mo><mi>pi</mi></mrow><mo>⁢</mo><mi>f</mi></mrow></math>" },
+    { "name": "current", "line": 10, "dim": "A", "params": ["R", "f", "L", "V", "pi"], "latex": "\\frac{V}{R + j \\cdot \\omega \\cdot L}", "mathml": "<math><mfrac><mi>V</mi><mrow><mi>R</mi><mo>+</mo><mrow><mrow><mi>j</mi><mo>⁢</mo><mi>omega</mi></mrow><mo>⁢</mo><mi>L</mi></mrow></mrow></mfrac></math>" },
+    { "name": "current_magnitude", "line": 11, "dim": "A", "params": ["R", "f", "L", "V", "pi"], "latex": "\\operatorname{abs}(\\mathrm{current})", "mathml": "<math><mrow><mi>abs</mi><mo>⁡</mo><mo>(</mo><mi>current</mi><mo>)</mo></mrow></math>" }
+  ]
+}

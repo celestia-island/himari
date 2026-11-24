@@ -1,0 +1,12 @@
+[package]
+name = "himari-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# 故意独立的 workspace：探针里有 **预期编译失败** 的 bin。
+[workspace]
+
+[dependencies]
+
+himari-macros = { path = "../../../macros" }

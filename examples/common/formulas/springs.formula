@@ -1,0 +1,14 @@
+% 三节点弹簧系统：直接写平衡方程，而不是先手写符号逆矩阵。
+decl {
+    k_1 : spring_1 [N/m];
+    k_2 : spring_2 [N/m];
+    k_3 : spring_3 [N/m];
+    k_4 : spring_4 [N/m];
+    F_1 : load_1 [N];
+    F_2 : load_2 [N];
+    F_3 : load_3 [N];
+    u_1 : displacement_1 [m];
+    u_2 : displacement_2 [m];
+    u_3 : displacement_3 [m];
+}
+displacements = solve([ (k_1 + k_2) * u_1 - k_2 * u_2 - F_1, -k_2 * u_1 + (k_2 + k_3) * u_2 - k_3 * u_3 - F_2, -k_3 * u_2 + (k_3 + k_4) * u_3 - F_3 ], [ u_1, u_2, u_3 ])

@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "name": "runtime_displacements", "line": 6, "dim": "m", "params": ["A", "b"], "latex": "\\operatorname{solve}(A, b)", "mathml": "<math><mrow><mi>solve</mi><mo>⁡</mo><mo>(</mo><mi>A</mi><mo>,</mo><mi>b</mi><mo>)</mo></mrow></math>" },
+    { "name": "runtime_traction", "line": 8, "dim": "kg·m·s^-2", "params": ["A", "x"], "latex": "A \\cdot x", "mathml": "<math><mrow><mi>A</mi><mo>⁢</mo><mi>x</mi></mrow></math>" },
+    { "name": "runtime_inverse", "line": 9, "dim": "kg^-1·s^2", "params": ["A"], "latex": "\\operatorname{inv}(A)", "mathml": "<math><mrow><mi>inv</mi><mo>⁡</mo><mo>(</mo><mi>A</mi><mo>)</mo></mrow></math>" },
+    { "name": "runtime_element", "line": 10, "dim": "kg·s^-2", "params": ["A"], "latex": "A_{\\mathrm{1}, \\mathrm{1}}", "mathml": "<math><msub><mi>A</mi><mrow><mi>1</mi><mi>1</mi></mrow></msub></math>" }
+  ]
+}

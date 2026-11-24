@@ -1,0 +1,9 @@
+% Tafel 形式（ln 形态）：η = a + b·ln(i/i₀)。
+% 典型 b ≈ 120 mV/decade → b = 0.120·ln(10) V；测试用 i/i₀ = 10。
+decl {
+    a : overpotential_offset [V];
+    b : tafel_slope [V];
+    i : current_density [A/m^2];
+    i_0 : exchange_current [A/m^2];
+}
+tafel = a + b * ln(i / i_0)

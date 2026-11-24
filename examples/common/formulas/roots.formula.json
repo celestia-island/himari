@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "quadratic_roots", "line": 7, "dim": "1", "params": ["a", "b", "c"], "latex": "\\operatorname{roots}(a \\cdot x^{2} + b \\cdot x + c, x)", "mathml": "<math><mrow><mi>roots</mi><mo>⁡</mo><mo>(</mo><mrow><mrow><mrow><mi>a</mi><mo>⁢</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>+</mo><mrow><mi>b</mi><mo>⁢</mo><mi>x</mi></mrow></mrow><mo>+</mo><mi>c</mi></mrow><mo>,</mo><mi>x</mi><mo>)</mo></mrow></math>" }
+  ]
+}

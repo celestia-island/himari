@@ -1,0 +1,10 @@
+% Runtime matrix/vector parameters: checked LU solve, matrix product, inverse, and indexing.
+decl {
+    A : stiffness_matrix [N/m];
+    b : load_vector [N];
+    x : displacement_vector [m];
+}
+runtime_displacements = solve(A, b)
+runtime_traction = A * x
+runtime_inverse = inv(A)
+runtime_element = A(1, 1)

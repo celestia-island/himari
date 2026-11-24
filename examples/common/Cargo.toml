@@ -1,0 +1,17 @@
+[package]
+name = "himari-example-common"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "common"
+path = "src/main.rs"
+
+[dependencies]
+
+himari = { workspace = true, features = ["std"] }
+himari-macros = { workspace = true }
+[build-dependencies]
+
+himari-buildhelper = { workspace = true }

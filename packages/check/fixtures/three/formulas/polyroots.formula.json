@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "name": "roots_quad", "line": 16, "dim": "m", "params": ["a", "b", "c"], "latex": "\\operatorname{roots}(a \\cdot x^{2} + b \\cdot x + c, x)", "mathml": "<math><mrow><mi>roots</mi><mo>⁡</mo><mo>(</mo><mrow><mrow><mrow><mi>a</mi><mo>⁢</mo><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>+</mo><mrow><mi>b</mi><mo>⁢</mo><mi>x</mi></mrow></mrow><mo>+</mo><mi>c</mi></mrow><mo>,</mo><mi>x</mi><mo>)</mo></mrow></math>" },
+    { "name": "roots_lin", "line": 18, "dim": "m", "params": ["b", "c"], "latex": "\\operatorname{roots}(b \\cdot x + c, x)", "mathml": "<math><mrow><mi>roots</mi><mo>⁡</mo><mo>(</mo><mrow><mrow><mi>b</mi><mo>⁢</mo><mi>x</mi></mrow><mo>+</mo><mi>c</mi></mrow><mo>,</mo><mi>x</mi><mo>)</mo></mrow></math>" },
+    { "name": "coeffs_quad", "line": 19, "dim": "1", "params": [], "latex": "\\operatorname{poly_coeffs}(2 \\cdot s^{2} - 3 \\cdot s + 1, s)", "mathml": "<math><mrow><mi>poly_coeffs</mi><mo>⁡</mo><mo>(</mo><mrow><mrow><mrow><mn>2</mn><mo>⁢</mo><msup><mi>s</mi><mn>2</mn></msup></mrow><mo>-</mo><mrow><mn>3</mn><mo>⁢</mo><mi>s</mi></mrow></mrow><mo>+</mo><mn>1</mn></mrow><mo>,</mo><mi>s</mi><mo>)</mo></mrow></math>" }
+  ]
+}

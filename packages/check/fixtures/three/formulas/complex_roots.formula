@@ -1,0 +1,8 @@
+% 复数二次根：稳定 q/a 与 c/q 算法在复数发射车道同样成立。
+decl {
+    a : quadratic [1];
+    b : linear [1];
+    c : constant [1];
+    x : unknown [1];
+}
+complex_roots = roots(a * x ^ 2 + b * x + c + j, x)

@@ -1,0 +1,12 @@
+[package]
+name = "himari-fixture-tracked"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[build-dependencies]
+
+himari-buildhelper = { workspace = true }
+[dependencies]
+
+himari-macros = { workspace = true }

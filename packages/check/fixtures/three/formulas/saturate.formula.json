@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "name": "sat", "line": 6, "dim": "1", "params": ["drive", "ceiling"], "latex": "\\operatorname{clamp}(\\mathrm{drive}, 0, \\mathrm{ceiling})", "mathml": "<math><mrow><mi>clamp</mi><mo>⁡</mo><mo>(</mo><mi>drive</mi><mo>,</mo><mn>0</mn><mo>,</mo><mi>ceiling</mi><mo>)</mo></mrow></math>" },
+    { "name": "peak", "line": 8, "dim": "1", "params": ["drive", "ceiling"], "latex": "\\max(\\mathrm{drive}, \\mathrm{ceiling})", "mathml": "<math><mrow><mi>max</mi><mo>⁡</mo><mo>(</mo><mi>drive</mi><mo>,</mo><mi>ceiling</mi><mo>)</mo></mrow></math>" },
+    { "name": "floor_", "line": 9, "dim": "1", "params": ["drive", "ceiling"], "latex": "\\min(\\mathrm{drive}, \\mathrm{ceiling})", "mathml": "<math><mrow><mi>min</mi><mo>⁡</mo><mo>(</mo><mi>drive</mi><mo>,</mo><mi>ceiling</mi><mo>)</mo></mrow></math>" }
+  ]
+}

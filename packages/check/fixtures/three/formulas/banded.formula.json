@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "", "line": 4, "dim": "1", "params": ["v"], "latex": "\\begin{bmatrix}v & v & v & \\cdots & \\cdots \\\\ v & v & v & v & \\cdots \\\\ v & v & v & v & v \\\\ \\cdots & v & v & v & v \\\\ \\cdots & \\cdots & v & v & v\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mo>⋯</mo></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd></mtr><mtr><mtd><mo>⋯</mo></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd></mtr><mtr><mtd><mo>⋯</mo></mtd><mtd><mo>⋯</mo></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd><mtd><mi>v</mi></mtd></mtr></mtable></math>" }
+  ]
+}

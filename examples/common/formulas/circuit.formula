@@ -1,0 +1,11 @@
+% 复数交流电路：频率 f 先显式换成角频率 ω=2πf，单位系统不猜物理模型。
+decl {
+    R : resistance [ohm];
+    f : frequency [Hz];
+    L : inductance [H];
+    V : source_voltage [V];
+    pi : circle_constant [1];
+}
+omega = 2 * pi * f
+current = V / (R + j * omega * L)
+current_magnitude = abs(current)

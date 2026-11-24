@@ -1,0 +1,12 @@
+% Nernst 方程：电极电位对活度的依赖（25°C 数值测试见 lib.rs）。
+% E = E° - (RT/nF)·ln(a_ox/a_red)；典型参数下 RT/F ≈ 25.693 mV。
+decl {
+    E0 : standard_potential [V];
+    R : gas_constant [J/mol/K];
+    T : temperature [K];
+    n : electron_count;
+    F : faraday [C/mol];
+    a_ox : activity;
+    a_red : activity;
+}
+nernst = E0 - R * T / (n * F) * ln(a_ox / a_red)

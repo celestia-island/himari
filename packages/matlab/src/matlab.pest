@@ -1,0 +1,86 @@
+// MATLAB expression subset (candidate front end B of this spike).
+//
+// Why MATLAB was taken as a candidate: of the five candidate surfaces it is the only one that
+// satisfies all three conditions at once — "is mathematical notation", "is a Rust token stream"
+// and "has executable semantics". The price is explicit multiplication (`x*y` cannot be written
+// `xy`) and bare multi-letter identifiers.
+
+// A newline is **not** part of implicit whitespace: a newline is a first-class separator
+// (formulas are split into lines / matrix rows are split).
+// In-line whitespace (space/tab) is skipped implicitly — this is what makes the matrix column
+// separator "at least one space, any number of them" work.
+WHITESPACE = _{ " " | "\t" }
+NEWLINE    = _{ "\r" | "\n" }
+// End of a line = an optional end-of-line comment + a newline (the newline after a comment line
+// is consumed here and does not fall through).
+LINE_END   = _{ COMMENT? ~ NEWLINE }
+COMMENT    = _{ "%" ~ (!"\n" ~ ANY)* }
+
+// The file header allows `use "relative/path"`: reuse a formula library across files
+// (parsing only collects it; the IO lives in the loader lane).
+file        = { SOI ~ LINE_END* ~ (use_stmt ~ LINE_END*)* ~ decl_block? ~ formula ~ (formula_sep ~ formula)* ~ formula_sep? ~ (LINE_END | COMMENT)* ~ EOI }
+use_stmt    = { "use" ~ "\"" ~ use_path ~ "\"" }
+use_path    = @{ (!"\"" ~ !NEWLINE ~ ANY)+ }
+formula_sep = { ";" ~ LINE_END* | LINE_END+ }
+decl_block  = { "decl" ~ "{" ~ LINE_END* ~ (decl ~ LINE_END*)+ ~ "}" }
+decl        = { ident ~ ":" ~ ident ~ unit_bracket? ~ ";" }
+unit_bracket = { "[" ~ unit ~ "]" }
+unit        = { unit_atom ~ (("/" | "*") ~ unit_atom)* }
+unit_atom   = { unit_name ~ ("^" ~ unit_pow)? }
+// Unit exponent: integers are written directly; **rational numbers must be parenthesized**
+// (`s^(-1/2)`). Without parentheses the `/` inside the exponent cannot be told apart from the
+// division sign of the unit string — rejected at the syntax level, so that a message like
+// "unknown unit 2" does not hide the real cause.
+unit_pow    = { "(" ~ unit_frac ~ ")" | "(" ~ unit_exp ~ ")" | unit_exp }
+unit_frac   = @{ "-"? ~ ASCII_DIGIT+ ~ "/" ~ ASCII_DIGIT+ }
+// `1` is the explicit dimensionless unit (quantities such as gain / count / mole fraction must
+// be declarable)
+unit_name   = @{ ASCII_ALPHA+ | "1" | "\u{03a9}" | ("\u{00b5}" | "\u{03bc}") ~ ASCII_ALPHA* }
+unit_exp    = @{ "-"? ~ ASCII_DIGIT+ }
+
+// Federated formula block: one or more formulas; a later formula may reference an earlier name
+// (subst inlining).
+formula     = { LINE_END* ~ (assign | expr) }
+assign      = { ident ~ "=" ~ LINE_END* ~ expr }
+
+// Operator continuation model: the operator must be at the **end of the line** (its left operand
+// sits right before it), and a newline may only follow the operator.
+// A `-` at the start of a line is not a cross-line subtraction — it starts a new formula / a new
+// matrix row.
+expr        = { term ~ (add_op ~ LINE_END* ~ term)* }
+add_op      = { "+" | "-" }
+term        = { factor ~ (mul_op ~ LINE_END* ~ factor)* }
+mul_op      = { "*" | "/" }
+factor      = { LINE_END* ~ add_op? ~ LINE_END* ~ power ~ transpose? }
+// ↑ The transpose must sit right next to its operand (it cannot cross a line): if the tail of
+// factor tolerated newlines it would swallow the formula separator.
+power       = { atom ~ ("^" ~ atom)* }
+
+atom        = { matrix | op_call | call | number | ident | group }
+// The unicode operators of the file/string lane (∂∇Σ∫√ in the macro token lane are rejected by
+// the lexer — lane discipline)
+// The shape is deliberately function-like with parentheses: ∂(u, x), ∇(u), ∇^2(u),
+// Σ(i, 1, n, body), ∫(x, a, b, body), √(x)
+op_call     = { op_name ~ op_pow? ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+op_name     = @{ "\u{2202}" | "\u{2207}" | "\u{0394}" | "\u{2211}" | "\u{222b}" | "\u{221a}" | "ddt" | "grad" | "lap" | "sum" | "intg" }
+op_pow      = { "^" ~ "2" }
+// Transpose suffix: `'` and `′` (U+2032). Note that `'` is only available in the file/string
+// lane; in the macro token lane it is a Rust lifetime marker and already fails at the lexer.
+transpose   = { "'" | "′" }
+matrix      = { "[" ~ LINE_END* ~ row ~ (row_sep ~ row)* ~ LINE_END* ~ ";"? ~ LINE_END* ~ "]" }
+// Row separator = semicolon or newline (one matrix row per physical line); a trailing semicolon
+// is free.
+row_sep     = { ";" ~ LINE_END* | LINE_END+ }
+// Column separator = a comma **or at least one space** (implicit whitespace); any number of
+// spaces, alignment not required.
+// Note: `k - 1` inside a row is two columns (k and -1); a subtraction must be written tightly as
+// `k-1` (MATLAB semantics).
+// `!LINE_END` blocks span-crossing joins: a newline must end the row (handed to row_sep).
+row         = { mcell ~ (!LINE_END ~ ","? ~ mcell)* }
+mcell       = { dots | expr }
+dots        = @{ "..." | "⋯" | "…" }
+call        = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+group       = { "(" ~ expr ~ ")" }
+
+number      = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+ident       = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }

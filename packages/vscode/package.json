@@ -1,0 +1,73 @@
+{
+  "name": "himari-formula",
+  "displayName": "Himari Formula",
+  "description": "Language support for .formula files (Himari formula assets)",
+  "version": "0.1.0",
+  "publisher": "celestia-island",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "himari-formula",
+        "aliases": [
+          "Himari Formula",
+          "himari"
+        ],
+        "extensions": [
+          ".formula"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "himari-formula",
+        "scopeName": "source.himari-formula",
+        "path": "./syntaxes/himari-formula.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "himari-formula",
+        "path": "./snippets/himari-formula.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "himari-formula.preview",
+        "title": "Himari: Preview Formulas",
+        "category": "Himari"
+      },
+      {
+        "command": "himari-formula.diagnose",
+        "title": "Himari: Diagnose Current File",
+        "category": "Himari"
+      }
+    ],
+    "configuration": {
+      "title": "Himari",
+      "properties": {
+        "himari.fmtPath": {
+          "type": "string",
+          "default": "himari-fmt",
+          "description": "himari-fmt 可执行文件路径（诊断与补全用；默认从 PATH 找）"
+        },
+        "himari.lspPath": {
+          "type": "string",
+          "default": "",
+          "description": "himari-lsp 可执行文件路径。留空则走「保存时跑 himari-fmt --diagnose」的 CLI 通道。"
+        }
+      }
+    }
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:himari-formula"
+  ]
+}

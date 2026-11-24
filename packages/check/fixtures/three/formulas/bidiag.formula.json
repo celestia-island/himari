@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "", "line": 5, "dim": "1", "params": ["a", "b"], "latex": "\\begin{bmatrix}b & \\cdots & \\cdots & \\cdots \\\\ a & b & \\cdots & \\cdots \\\\ \\cdots & a & b & \\cdots \\\\ \\cdots & \\cdots & a & b\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mi>b</mi></mtd><mtd><mo>⋯</mo></mtd><mtd><mo>⋯</mo></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd><mtd><mo>⋯</mo></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mo>⋯</mo></mtd><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mo>⋯</mo></mtd><mtd><mo>⋯</mo></mtd><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr></mtable></math>" }
+  ]
+}

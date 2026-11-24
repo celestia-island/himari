@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "", "line": 6, "dim": "1", "params": ["p", "q"], "latex": "\\begin{bmatrix}p & \\cdots & 0 & 0 \\\\ \\cdots & p & 0 & 0 \\\\ 0 & 0 & q & \\cdots \\\\ 0 & 0 & \\cdots & q\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mi>p</mi></mtd><mtd><mo>⋯</mo></mtd><mtd><mn>0</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mo>⋯</mo></mtd><mtd><mi>p</mi></mtd><mtd><mn>0</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>0</mn></mtd><mtd><mi>q</mi></mtd><mtd><mo>⋯</mo></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>0</mn></mtd><mtd><mo>⋯</mo></mtd><mtd><mi>q</mi></mtd></mtr></mtable></math>" }
+  ]
+}

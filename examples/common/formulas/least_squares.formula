@@ -1,0 +1,12 @@
+% 直线 y = intercept + slope*x 的最小二乘正规方程。
+% 所有数据先无量纲化：当前矩阵值车道不允许 intercept 与 slope 量纲不同。
+decl {
+    n : sample_count [1];
+    sum_x : sum_x [1];
+    sum_y : sum_y [1];
+    sum_xx : sum_xx [1];
+    sum_xy : sum_xy [1];
+    intercept : fitted_intercept [1];
+    slope : fitted_slope [1];
+}
+line_fit = solve([ n * intercept + sum_x * slope - sum_y, sum_x * intercept + sum_xx * slope - sum_xy ], [ intercept, slope ])

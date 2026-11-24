@@ -1,0 +1,9 @@
+% 游戏/信号侧的钳制：min / max / clamp 是一等函数（不再是"发射成不存在的方法"）
+% 语义与 Rust 同形：clamp(v, lo, hi) = v.max(lo).min(hi)（lo > hi 时得 hi；不猜、不交换边界）
+decl {
+    drive : normalized_drive [1];
+    ceiling : normalized_ceiling [1];
+}
+sat = clamp(drive, 0, ceiling)
+peak = max(drive, ceiling)
+floor_ = min(drive, ceiling)

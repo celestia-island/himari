@@ -1,0 +1,60 @@
+[workspace]
+resolver = "2"
+members = [
+    "packages/himari",
+    "packages/latex",
+    "packages/matlab",
+    "packages/macros",
+    "packages/check",
+    "packages/check/fixtures/three",
+    "packages/buildhelper",
+    "packages/loader",
+    "packages/check/fixtures/tracked",
+    "packages/check/fixtures/nostd",
+    "examples/reentry",
+    "examples/common",
+    "packages/standards",
+    "tools/staging-budget",
+    "packages/lean",
+]
+# 探针里有**预期编译失败**的 bin，必须留在 workspace 外面，
+# 否则 `cargo test --workspace` 会在构建阶段就炸掉。
+exclude = ["packages/check/fixtures/probe", "packages/vscode"]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.90"
+# SySL 是非标准许可（crates.io 的 SPDX 表里没有它），按 cargo 的指引对非标准许可
+# **只用 license-file**、不写 `license` 字符串 —— 写了 `LicenseRef-SysL-1.0` 反而会让
+# crates.io 把它当成未知标识。协议正文 + 模型披露 = 仓根 LICENSE.txt，crates.io 页面原样展示。
+license-file = "LICENSE.txt"
+authors = ["langyo <langyo.china@gmail.com>"]
+repository = "https://github.com/celestia-island/himari"
+documentation = "https://docs.rs/himari"
+readme = "README.md"
+# crates.io 类目：必须是官方列表里的 slug，否则 publish 被拒
+#   science  → 科学计算；mathematics；development-tools::build-utils（build.rs 车道）；
+#   compilation；no-std（libm 车道）。最多 5 个。
+categories = [
+    "science",
+    "mathematics",
+    "development-tools::build-utils",
+    "compilers",
+    "no-std",
+]
+# 最多 5 个关键字，每个 ≤ 20 字符（含空格与连字符）
+keywords = ["formula", "units", "dimensions", "codegen", "latex"]
+
+[workspace.dependencies]
+
+himari = { path = "packages/himari", version = "0.1", default-features = false }
+himari-buildhelper = { path = "packages/buildhelper", version = "0.1" }
+himari-latex = { path = "packages/latex", version = "0.1", default-features = false }
+himari-loader = { path = "packages/loader", version = "0.1" }
+himari-macros = { path = "packages/macros", version = "0.1" }
+himari-matlab = { path = "packages/matlab", version = "0.1", default-features = false }
+
+libm = "^0.2"
+pest_derive = { version = "^2", default-features = false }
+[profile.dev]
+incremental = false

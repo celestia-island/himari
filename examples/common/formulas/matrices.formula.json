@@ -1,0 +1,11 @@
+{
+  "items": [
+    { "name": "rotation", "line": 7, "dim": "1", "params": ["theta"], "latex": "\\begin{bmatrix}\\cos(\\theta) & -\\sin(\\theta) \\\\ \\sin(\\theta) & \\cos(\\theta)\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mrow><mi>cos</mi><mo>⁡</mo><mo>(</mo><mi>theta</mi><mo>)</mo></mrow></mtd><mtd><mrow><mo>-</mo><mrow><mi>sin</mi><mo>⁡</mo><mo>(</mo><mi>theta</mi><mo>)</mo></mrow></mrow></mtd></mtr><mtr><mtd><mrow><mi>sin</mi><mo>⁡</mo><mo>(</mo><mi>theta</mi><mo>)</mo></mrow></mtd><mtd><mrow><mi>cos</mi><mo>⁡</mo><mo>(</mo><mi>theta</mi><mo>)</mo></mrow></mtd></mtr></mtable></math>" },
+    { "name": "rotation_orthogonality", "line": 10, "dim": "1", "params": ["theta"], "latex": "\\mathrm{rotation}^{T} \\cdot \\mathrm{rotation}", "mathml": "<math><mrow><msup><mi>rotation</mi><mi>T</mi></msup><mo>⁢</mo><mi>rotation</mi></mrow></math>" },
+    { "name": "stiffness", "line": 11, "dim": "kg·s^-2", "params": ["k"], "latex": "\\begin{bmatrix}4 \\cdot k & k \\\\ k & 3 \\cdot k\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mrow><mn>4</mn><mo>⁢</mo><mi>k</mi></mrow></mtd><mtd><mi>k</mi></mtd></mtr><mtr><mtd><mi>k</mi></mtd><mtd><mrow><mn>3</mn><mo>⁢</mo><mi>k</mi></mrow></mtd></mtr></mtable></math>" },
+    { "name": "N", "line": 13, "dim": "kg^2·s^-4", "params": ["k"], "latex": "\\mathrm{stiffness}^{T} \\cdot \\mathrm{stiffness}", "mathml": "<math><mrow><msup><mi>stiffness</mi><mi>T</mi></msup><mo>⁢</mo><mi>stiffness</mi></mrow></math>" },
+    { "name": "stiffness_inverse", "line": 14, "dim": "kg^-1·s^2", "params": ["k"], "latex": "\\operatorname{inv}(\\mathrm{stiffness})", "mathml": "<math><mrow><mi>inv</mi><mo>⁡</mo><mo>(</mo><mi>stiffness</mi><mo>)</mo></mrow></math>" },
+    { "name": "stiffness_identity", "line": 15, "dim": "1", "params": ["k"], "latex": "\\mathrm{stiffness} \\cdot \\mathrm{stiffness_inverse}", "mathml": "<math><mrow><mi>stiffness</mi><mo>⁢</mo><mi>stiffness_inverse</mi></mrow></math>" },
+    { "name": "nodal_forces", "line": 16, "dim": "kg·m·s^-2", "params": ["k", "x_1", "x_2"], "latex": "\\mathrm{stiffness} \\cdot \\begin{bmatrix}\\mathrm{x_1} \\\\ \\mathrm{x_2}\\end{bmatrix}", "mathml": "<math><mrow><mi>stiffness</mi><mo>⁢</mo><mtable><mtr><mtd><mi>x_1</mi></mtd></mtr><mtr><mtd><mi>x_2</mi></mtd></mtr></mtable></mrow></math>" }
+  ]
+}

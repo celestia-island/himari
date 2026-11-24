@@ -1,0 +1,10 @@
+% 复数 Warburg 阻抗：Z = σ/(jω)^(1/2)。
+% σ 的量纲是真·半整数 Ω·s^(-1/2)（单位串里括号让指数中的 `/` 不与除号混淆）。
+% 这条走**代码生成**车道：发射成 `-> (f64, f64)` = (实部, 虚部)。
+% 第二式取模长，同时验证联邦展开 + 复数算子在生成物里的组合。
+decl {
+    sigma : warburg_coefficient [V/A*s^(-1/2)];
+    omega : angular_frequency [Hz];
+}
+Z_c = sigma / (j * omega) ^ (1 / 2)
+Z_mag = abs(Z_c)

@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "i0_arrhenius", "line": 7, "dim": "m^-2·A", "params": ["A", "E_a", "R", "T"], "latex": "A \\cdot \\exp(-(\\frac{\\mathrm{E_a}}{R \\cdot T}))", "mathml": "<math><mrow><mi>A</mi><mo>⁢</mo><mrow><mi>exp</mi><mo>⁡</mo><mo>(</mo><mrow><mo>-</mo><mfrac><mi>E_a</mi><mrow><mi>R</mi><mo>⁢</mo><mi>T</mi></mrow></mfrac></mrow><mo>)</mo></mrow></mrow></math>" }
+  ]
+}

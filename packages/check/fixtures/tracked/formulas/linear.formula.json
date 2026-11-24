@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "y", "line": 4, "dim": "1", "params": ["x", "k"], "latex": "k \\cdot x + 1", "mathml": "<math><mrow><mrow><mi>k</mi><mo>⁢</mo><mi>x</mi></mrow><mo>+</mo><mn>1</mn></mrow></math>" }
+  ]
+}

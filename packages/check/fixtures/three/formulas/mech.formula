@@ -1,0 +1,8 @@
+% 联邦制演示：mech 引用第一条 accel（生成时代入内联）。
+decl {
+    F : force [N];
+    m : mass [kg];
+    r : radius [m];
+}
+accel = F / m
+mech = (accel * r) ^ (1 / 2)

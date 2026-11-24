@@ -1,0 +1,81 @@
+{
+  "declBlock": {
+    "prefix": "decl",
+    "body": [
+      "decl {",
+      "\t${1:sym} : ${2:quantity} [${3:unit}];",
+      "\t$0",
+      "}"
+    ],
+    "description": "声明块：符号 + 量纲（单位可选）"
+  },
+  "declNoUnit": {
+    "prefix": "decln",
+    "body": ["decl {", "\t${1:sym} : ${2:quantity};", "\t$0", "}"],
+    "description": "声明块（无量纲符号）"
+  },
+  "tridiagPattern": {
+    "prefix": "tridiag",
+    "body": [
+      "[ ${1:b}(1), ${2:c}, ..., 0 ;",
+      "  ${3:a}, ${1:b}(2), ${2:c}, ... ;",
+      "  ..., ${3:a}, ${1:b}(3), ${2:c} ;",
+      "  0, ..., ${3:a}, ${1:b}(4) ]"
+    ],
+    "description": "三对角模式矩阵（索引序列 → 向量参数）"
+  },
+  "tridiagScalar": {
+    "prefix": "tridiags",
+    "body": [
+      "[ ${1:b}, ${2:c}, ..., 0 ;",
+      "  ${3:a}, ${1:b}, ${2:c}, ... ;",
+      "  ..., ${3:a}, ${1:b}, ${2:c} ;",
+      "  0, ..., ${3:a}, ${1:b} ]"
+    ],
+    "description": "三对角模式矩阵（对角同一表达式 → 标量广播）"
+  },
+  "identityPattern": {
+    "prefix": "ident",
+    "body": ["[1, ..., 0 ;", "  ..., 1, ... ;", "  0, ..., 1 ]"],
+    "description": "单位阵模式矩阵（3×3 示意）"
+  },
+  "bmatrix": {
+    "prefix": "bmat",
+    "body": ["\\begin{bmatrix} ${1:a} & ${2:b} \\\\ ${3:c} & ${4:d} \\end{bmatrix}"],
+    "description": "LaTeX bmatrix（2×2 起步）"
+  },
+  "derivFraction": {
+    "prefix": "ddx",
+    "body": ["\\frac{\\partial ${1:u}}{\\partial ${2:x}}"],
+    "description": "偏微分（LaTeX 面）"
+  },
+  "derivCall": {
+    "prefix": "ddt",
+    "body": ["∂(${1:u}, ${2:x})"],
+    "description": "偏微分（纸面/文件面）"
+  },
+  "sumOp": {
+    "prefix": "sum",
+    "body": ["∑(${1:i}, ${2:0}, ${3:n}, ${4:body})"],
+    "description": "有限和（纸面/文件面）"
+  },
+  "sumLatex": {
+    "prefix": "suml",
+    "body": ["\\sum_{${1:i}=${2:0}}^{${3:n}} ${4:body}"],
+    "description": "有限和（LaTeX 面）"
+  },
+  "integral": {
+    "prefix": "intg",
+    "body": ["∫(${1:x}, ${2:a}, ${3:b}, ${4:body})"],
+    "description": "定积分（纸面/文件面）"
+  },
+  "federated": {
+    "prefix": "fed",
+    "body": [
+      "decl { ${1:x} : ${2:quantity}; }",
+      "${3:aux} = ${4:expr}",
+      "${5:out} = ${6:expr}"
+    ],
+    "description": "联邦公式块（声明 + 前条 + 后条引用）"
+  }
+}

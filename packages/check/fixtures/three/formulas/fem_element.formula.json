@@ -1,0 +1,9 @@
+{
+  "items": [
+    { "name": "J", "line": 13, "dim": "m", "params": ["x_1", "x_2", "x_3", "y_1", "y_2", "y_3"], "latex": "\\begin{bmatrix}\\mathrm{x_2} - \\mathrm{x_1} & \\mathrm{x_3} - \\mathrm{x_1} \\\\ \\mathrm{y_2} - \\mathrm{y_1} & \\mathrm{y_3} - \\mathrm{y_1}\\end{bmatrix}", "mathml": "<math><mtable><mtr><mtd><mrow><mi>x_2</mi><mo>-</mo><mi>x_1</mi></mrow></mtd><mtd><mrow><mi>x_3</mi><mo>-</mo><mi>x_1</mi></mrow></mtd></mtr><mtr><mtd><mrow><mi>y_2</mi><mo>-</mo><mi>y_1</mi></mrow></mtd><mtd><mrow><mi>y_3</mi><mo>-</mo><mi>y_1</mi></mrow></mtd></mtr></mtable></math>" },
+    { "name": "area", "line": 16, "dim": "m^2", "params": ["x_1", "x_2", "x_3", "y_1", "y_2", "y_3"], "latex": "\\frac{\\det(J)}{2}", "mathml": "<math><mfrac><mrow><mi>det</mi><mo>⁡</mo><mo>(</mo><mi>J</mi><mo>)</mo></mrow><mn>2</mn></mfrac></math>" },
+    { "name": "jac_trace", "line": 17, "dim": "m", "params": ["x_1", "x_2", "y_1", "y_3"], "latex": "\\operatorname{trace}(J)", "mathml": "<math><mrow><mi>trace</mi><mo>⁡</mo><mo>(</mo><mi>J</mi><mo>)</mo></mrow></math>" },
+    { "name": "J_adj", "line": 18, "dim": "m", "params": ["x_1", "x_2", "x_3", "y_1", "y_2", "y_3"], "latex": "\\operatorname{adjoint}(J)", "mathml": "<math><mrow><mi>adjoint</mi><mo>⁡</mo><mo>(</mo><mi>J</mi><mo>)</mo></mrow></math>" },
+    { "name": "J_inv", "line": 19, "dim": "m^-1", "params": ["x_1", "x_2", "x_3", "y_1", "y_2", "y_3"], "latex": "\\operatorname{inv}(J)", "mathml": "<math><mrow><mi>inv</mi><mo>⁡</mo><mo>(</mo><mi>J</mi><mo>)</mo></mrow></math>" }
+  ]
+}

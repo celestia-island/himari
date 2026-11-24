@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "name": "accel", "line": 6, "dim": "m·s^-2", "params": ["F", "m"], "latex": "\\frac{F}{m}", "mathml": "<math><mfrac><mi>F</mi><mi>m</mi></mfrac></math>" },
+    { "name": "mech", "line": 8, "dim": "m·s^-1", "params": ["F", "m", "r"], "latex": "(\\mathrm{accel} \\cdot r)^{\\frac{1}{2}}", "mathml": "<math><msup><mrow><mi>accel</mi><mo>⁢</mo><mi>r</mi></mrow><mfrac><mn>1</mn><mn>2</mn></mfrac></msup></math>" }
+  ]
+}

@@ -1,0 +1,14 @@
+% 嵌入侧（no_std）用得到的公式：指数大气阻力的两个量。
+% 生成物只用 core 语法，超越函数走 libm。
+% no_std 车道的 sqrt 路径：几何平均（libm::sqrt，不是 f64::sqrt）
+decl {
+    rho_0 : sea_level_density [kg/m^3];
+    h : altitude [m];
+    H : scale_height [m];
+    Cd : drag_coefficient [1];
+    A : reference_area [m^2];
+    v : speed [m/s];
+}
+rho = rho_0 * exp(-h / H)
+drag = 0.5 * rho_0 * exp(-h / H) * v ^ 2 * Cd * A
+gm = sqrt(rho_0 * Cd)

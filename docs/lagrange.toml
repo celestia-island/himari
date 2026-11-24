@@ -1,0 +1,7 @@
+[site]
+title = "Himari"
+description = "Dimensioned formula IR: parse LaTeX/MATLAB/paper notation once, check kg·m·s·A·K·mol·cd at compile time, and emit Rust"
+
+[languages]
+default = "en"
+order = ["en", "zh-Hans", "zh-Hant", "ja", "ko", "fr", "es", "ru", "ar"]

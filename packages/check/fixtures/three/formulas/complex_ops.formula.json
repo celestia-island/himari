@@ -1,0 +1,20 @@
+{
+  "items": [
+    { "name": "z", "line": 6, "dim": "1", "params": ["u", "v"], "latex": "u + j \\cdot v", "mathml": "<math><mrow><mi>u</mi><mo>+</mo><mrow><mi>j</mi><mo>⁢</mo><mi>v</mi></mrow></mrow></math>" },
+    { "name": "z_abs", "line": 8, "dim": "1", "params": ["u", "v"], "latex": "\\operatorname{abs}(z)", "mathml": "<math><mrow><mi>abs</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_arg", "line": 9, "dim": "1", "params": ["u", "v"], "latex": "\\operatorname{arg}(z)", "mathml": "<math><mrow><mi>arg</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_conj", "line": 10, "dim": "1", "params": ["u", "v"], "latex": "\\operatorname{conj}(z)", "mathml": "<math><mrow><mi>conj</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_re", "line": 11, "dim": "1", "params": ["u", "v"], "latex": "\\operatorname{re}(z)", "mathml": "<math><mrow><mi>re</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_im", "line": 12, "dim": "1", "params": ["u", "v"], "latex": "\\operatorname{im}(z)", "mathml": "<math><mrow><mi>im</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_exp", "line": 13, "dim": "1", "params": ["u", "v"], "latex": "\\exp(z)", "mathml": "<math><mrow><mi>exp</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_ln", "line": 14, "dim": "1", "params": ["u", "v"], "latex": "\\ln(z)", "mathml": "<math><mrow><mi>ln</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_sin", "line": 15, "dim": "1", "params": ["u", "v"], "latex": "\\sin(z)", "mathml": "<math><mrow><mi>sin</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_cos", "line": 16, "dim": "1", "params": ["u", "v"], "latex": "\\cos(z)", "mathml": "<math><mrow><mi>cos</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_tan", "line": 17, "dim": "1", "params": ["u", "v"], "latex": "\\tan(z)", "mathml": "<math><mrow><mi>tan</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_sinh", "line": 18, "dim": "1", "params": ["u", "v"], "latex": "\\sinh(z)", "mathml": "<math><mrow><mi>sinh</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_cosh", "line": 19, "dim": "1", "params": ["u", "v"], "latex": "\\cosh(z)", "mathml": "<math><mrow><mi>cosh</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_tanh", "line": 20, "dim": "1", "params": ["u", "v"], "latex": "\\tanh(z)", "mathml": "<math><mrow><mi>tanh</mi><mo>⁡</mo><mo>(</mo><mi>z</mi><mo>)</mo></mrow></math>" },
+    { "name": "z_pow3", "line": 21, "dim": "1", "params": ["u", "v"], "latex": "(u - 1)^{3} + j \\cdot v", "mathml": "<math><mrow><msup><mrow><mi>u</mi><mo>-</mo><mn>1</mn></mrow><mn>3</mn></msup><mo>+</mo><mrow><mi>j</mi><mo>⁢</mo><mi>v</mi></mrow></mrow></math>" },
+    { "name": "z_sqrt", "line": 22, "dim": "1", "params": ["u", "v"], "latex": "z^{\\frac{1}{2}}", "mathml": "<math><msup><mi>z</mi><mfrac><mn>1</mn><mn>2</mn></mfrac></msup></math>" }
+  ]
+}

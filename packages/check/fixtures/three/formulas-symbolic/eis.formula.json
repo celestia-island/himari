@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "Z", "line": 6, "dim": "kg·m^2·s^-3·A^-2", "params": ["R_s", "X"], "latex": "\\mathrm{R_s} + j \\cdot X", "mathml": "<math><mrow><mi>R_s</mi><mo>+</mo><mrow><mi>j</mi><mo>⁢</mo><mi>X</mi></mrow></mrow></math>" }
+  ]
+}

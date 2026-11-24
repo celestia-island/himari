@@ -1,0 +1,27 @@
+[package]
+name = "himari"
+version = "0.1.0"
+edition.workspace = true
+description = "Dimensioned formula IR: parse LaTeX/MATLAB/paper notation once, check kg·m·s·A·K·mol·cd at compile time, and emit Rust."
+rust-version.workspace = true
+license-file.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+libm = { workspace = true }
+
+[dev-dependencies]
+
+# Compatibility test only: `himari::Error` must work as an `anyhow::Error` source.
+anyhow = "1"
+
+[features]
+default = ["std"]
+std = []

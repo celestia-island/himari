@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "name": "i_c", "line": 9, "dim": "A", "params": ["C_dl", "E", "f"], "latex": "\\mathrm{C_dl} \\cdot E \\cdot f", "mathml": "<math><mrow><mrow><mi>C_dl</mi><mo>⁢</mo><mi>E</mi></mrow><mo>⁢</mo><mi>f</mi></mrow></math>" }
+  ]
+}

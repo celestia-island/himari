@@ -1,0 +1,16 @@
+[package]
+name = "himari-fixture-three"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+name = "three"
+
+[dependencies]
+
+himari = { workspace = true, features = ["std"] }
+
+[build-dependencies]
+himari-buildhelper = { workspace = true }
