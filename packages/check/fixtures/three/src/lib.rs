@@ -394,8 +394,8 @@ fn cdl_current_takes_base_units() {
     );
     // The conversion factor must be carried out by a doc comment (docs and code from one source)
     assert!(
-        include_str!("generated.rs").contains("1 µF = 0.000001 基单位"),
-        "生成物应带 SI 换算提示"
+        include_str!("generated.rs").contains("1 µF = 0.000001 base units"),
+        "the generated artefact must carry the SI conversion hint"
     );
 }
 
