@@ -10396,6 +10396,17 @@ mod tests {
         .unwrap_err();
         let en = err.render(i18n::Locale::En);
         assert!(en.contains("not linear in `x, y`"), "{en}");
+        // A declared unknown that the product does NOT mention must not be named: without this
+        // case, "name every declared unknown" and "name the involved ones" are
+        // indistinguishable (a mutation dropping the `has_var` filter survived until it existed).
+        let err = solve_system(
+            &[sub(mul(var("x"), var("x")), num(1.0))],
+            &["x".into(), "z".into()],
+        )
+        .unwrap_err();
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("not linear in `x`"), "{en}");
+        assert!(!en.contains("`x, z`"), "{en}");
     }
 
     #[test]
