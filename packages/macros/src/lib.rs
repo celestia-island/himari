@@ -223,8 +223,8 @@ fn compile(src: &str, dialect: Dialect) -> Result<String, himari::FrontError> {
     }?;
     // Federated dimensions: the names of earlier formulas join the declaration table with the
     // dimension of their expression.
-    let dims = himari::dims_of_set(&set).map_err(himari::FrontError::plain)?;
-    let runtime_shapes = himari::runtime::shapes_of_set(&set).map_err(himari::FrontError::plain)?;
+    let dims = himari::dims_of_set(&set).map_err(himari::FrontError::from)?;
+    let runtime_shapes = himari::runtime::shapes_of_set(&set).map_err(himari::FrontError::from)?;
     if set.items.len() != 1
         && set
             .items
@@ -240,9 +240,9 @@ fn compile(src: &str, dialect: Dialect) -> Result<String, himari::FrontError> {
         // check
         let folded = himari::simplify(&item.expr);
         himari::runtime::dim_check_runtime(&folded, &dims, &runtime_shapes)
-            .map_err(himari::FrontError::plain)?;
+            .map_err(himari::FrontError::from)?;
         if !himari::runtime::uses_runtime_values(&folded, &runtime_shapes) {
-            himari::shape_check(&folded).map_err(himari::FrontError::plain)?;
+            himari::shape_check(&folded).map_err(himari::FrontError::from)?;
         }
         if contains_pattern(&item.expr) {
             return Err(himari::FrontError::plain(himari::Error::UnsupportedOperation(
@@ -280,7 +280,7 @@ fn compile(src: &str, dialect: Dialect) -> Result<String, himari::FrontError> {
         }
         let block = if is_runtime || fallible_roots {
             himari::runtime::emit_runtime(&folded, &runtime_shapes)
-                .map_err(himari::FrontError::plain)?
+                .map_err(himari::FrontError::from)?
                 .code
         } else if is_cx {
             himari::emit_block_complex_with(&folded, &cx_names)

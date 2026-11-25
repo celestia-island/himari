@@ -450,7 +450,7 @@ fn quickfixes(src: &str) -> Vec<Fix> {
         Err(e) => Some(e),
         Ok(set) => himari::dims_of_set(&set)
             .err()
-            .map(himari::FrontError::plain),
+            .map(himari::FrontError::from),
     };
     let name_of = |err: &himari::FrontError| -> Option<String> {
         match &*err.code {

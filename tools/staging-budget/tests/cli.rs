@@ -83,7 +83,7 @@ fn list_flag_reaches_the_binary_through_argv() {
     let mut lines = stdout.lines();
     assert_eq!(
         lines.next(),
-        Some("packages/p/src/lib.rs:1  error_from     fn f() -> Result<(), Error> { Err(Error::from(\"x\")) }")
+        Some("packages/p/src/lib.rs:1  error_from      fn f() -> Result<(), Error> { Err(Error::from(\"x\")) }")
     );
     assert!(stdout.ends_with("staging-budget: clean\n"), "{stdout}");
     let _ = std::fs::remove_dir_all(&ws);

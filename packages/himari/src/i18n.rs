@@ -271,6 +271,16 @@ pub enum Error {
     RootFindingFailed {
         reason: String,
     },
+    /// A unit exponent p/q, reduced exactly, does not fit the i16 dimension grid (the
+    /// half-integer lattice has a finite range).
+    ExponentOutOfRange {
+        exponent: String,
+    },
+    /// The expression is not a univariate polynomial in the requested variable, so the
+    /// polynomial lanes (symbolic coefficients, real/complex roots) do not apply to it.
+    NotPolynomial {
+        var: String,
+    },
     /// A user-visible label for an unnamed formula ("formula #3"), localized like a message.
     FormulaLabel(usize),
     /// A message that has not been catalogued yet. Rendering returns it verbatim, so a
@@ -338,6 +348,8 @@ impl Error {
             Error::NotEmittable(_) => "not-emittable",
             Error::UnsupportedOperation(_) => "unsupported-operation",
             Error::WgslReservedWord { .. } => "wgsl-reserved-word",
+            Error::ExponentOutOfRange { .. } => "exponent-out-of-range",
+            Error::NotPolynomial { .. } => "not-polynomial",
             Error::RootFindingFailed { .. } => "root-finding-failed",
             Error::IncompatibleUnits { .. } => "incompatible-units",
             Error::ExponentZeroDenominator { .. } => "exponent-zero-denominator",
@@ -388,6 +400,8 @@ impl Error {
             Error::NotEmittable(_) => "the expression cannot be emitted: {0}",
             Error::UnsupportedOperation(_) => "unsupported operation: {0}",
             Error::WgslReservedWord { .. } => "symbol `{0}` collides with the WGSL reserved word `{1}`: rename it or write the shader by hand",
+            Error::ExponentOutOfRange { .. } => "unit exponent `{0}` is outside the dimension grid range (half-integer exponents must fit in i16)",
+            Error::NotPolynomial { .. } => "expected a univariate polynomial in `{0}`: `{0}` appears inside a function, a denominator, or a non-integer power",
             Error::RootFindingFailed { .. } => "numeric root finding failed: {0}; the polynomial may be ill-conditioned — rescale the variable or reduce the degree",
             Error::IncompatibleUnits { .. } => "cannot convert `{0}` ({1}) to `{2}` ({3}): the dimensions differ",
             Error::ExponentZeroDenominator { .. } => "unit exponent `{0}` has a zero denominator",
@@ -449,6 +463,12 @@ impl Error {
             Error::UnsupportedOperation(_) => "不支持的操作：{0}",
             Error::WgslReservedWord { .. } => {
                 "符号 `{0}` 与 WGSL 保留字 `{1}` 撞名：改个名字，或手写 shader"
+            }
+            Error::ExponentOutOfRange { .. } => {
+                "单位指数 `{0}` 超出量纲格范围（半整数指数必须落在 i16 内）"
+            }
+            Error::NotPolynomial { .. } => {
+                "需要关于 `{0}` 的一元多项式：`{0}` 出现在函数/分母/非整数幂里时不适用"
             }
             Error::RootFindingFailed { .. } => {
                 "数值求根失败：{0}；多项式可能病态 —— 请缩放变量或降次"
@@ -520,6 +540,12 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符號 `{0}` 與 WGSL 保留字 `{1}` 撞名：改個名字，或手寫 shader"
             }
+            Error::ExponentOutOfRange { .. } => {
+                "單位指數 `{0}` 超出量綱格範圍（半整數指數必須落在 i16 內）"
+            }
+            Error::NotPolynomial { .. } => {
+                "需要關於 `{0}` 的一元多項式：`{0}` 出現在函數/分母/非整數冪裡時不適用"
+            }
             Error::RootFindingFailed { .. } => {
                 "數值求根失敗：{0}；多項式可能病態 —— 請縮放變數或降次"
             }
@@ -582,6 +608,8 @@ impl Error {
             Error::NotEmittable(_) => "この式はコードとして出力できません：{0}",
             Error::UnsupportedOperation(_) => "未対応の操作です：{0}",
             Error::WgslReservedWord { .. } => "シンボル `{0}` は WGSL の予約語 `{1}` と衝突します：名前を変えるか、シェーダーを手書きしてください",
+            Error::ExponentOutOfRange { .. } => "単位の指数 `{0}` が次元グリッドの範囲外です（半整数の指数は i16 に収まる必要があります）",
+            Error::NotPolynomial { .. } => "`{0}` の一変数多項式が必要です：`{0}` が関数・分母・非整数冪の中に現れる場合は使えません",
             Error::RootFindingFailed { .. } => "数値求根に失敗しました：{0}。多項式が悪条件の可能性があります — 変数を再スケールするか次数を下げてください",
             Error::IncompatibleUnits { .. } => "次元が異なるため `{0}`（{1}）を `{2}`（{3}）へ換算できません",
             Error::ExponentZeroDenominator { .. } => "単位の指数 `{0}` の分母がゼロです",
@@ -635,6 +663,8 @@ impl Error {
             Error::NotEmittable(_) => "이 식은 코드로 내보낼 수 없습니다: {0}",
             Error::UnsupportedOperation(_) => "지원하지 않는 연산입니다: {0}",
             Error::WgslReservedWord { .. } => "기호 `{0}`이(가) WGSL 예약어 `{1}`와 충돌합니다: 이름을 바꾸거나 셰이더를 직접 작성하세요",
+            Error::ExponentOutOfRange { .. } => "단위 지수 `{0}`이(가) 차원 격자 범위를 벗어났습니다 (반정수 지수는 i16 안에 들어가야 합니다)",
+            Error::NotPolynomial { .. } => "`{0}`에 대한 일변수 다항식이 필요합니다: `{0}`이(가) 함수/분모/비정수 거듭제곱 안에 있으면 사용할 수 없습니다",
             Error::RootFindingFailed { .. } => "수치적 근 찾기에 실패했습니다: {0}. 다항식이 병태일 수 있습니다 — 변수를 다시 조정하거나 차수를 낮추세요",
             Error::IncompatibleUnits { .. } => "차원이 달라 `{0}`({1})을(를) `{2}`({3})로 변환할 수 없습니다",
             Error::ExponentZeroDenominator { .. } => "단위 지수 `{0}`의 분모가 0입니다",
@@ -688,6 +718,8 @@ impl Error {
             Error::NotEmittable(_) => "cette expression ne peut pas être émise : {0}",
             Error::UnsupportedOperation(_) => "opération non prise en charge : {0}",
             Error::WgslReservedWord { .. } => "le symbole `{0}` entre en conflit avec le mot réservé WGSL `{1}` : renomme-le ou écris le shader à la main",
+            Error::ExponentOutOfRange { .. } => "l'exposant d'unité `{0}` est hors de la plage de la grille dimensionnelle (un exposant demi-entier doit tenir dans un i16)",
+            Error::NotPolynomial { .. } => "un polynôme univarié en `{0}` est attendu : `{0}` apparaît dans une fonction, un dénominateur ou une puissance non entière",
             Error::RootFindingFailed { .. } => "la recherche numérique de racines a échoué : {0} ; le polynôme est peut-être mal conditionné — remettez à l'échelle ou réduisez le degré",
             Error::IncompatibleUnits { .. } => "impossible de convertir `{0}` ({1}) en `{2}` ({3}) : les dimensions diffèrent",
             Error::ExponentZeroDenominator { .. } => "l'exposant d'unité `{0}` a un dénominateur nul",
@@ -741,6 +773,8 @@ impl Error {
             Error::NotEmittable(_) => "esta expresión no puede emitirse: {0}",
             Error::UnsupportedOperation(_) => "operación no soportada: {0}",
             Error::WgslReservedWord { .. } => "el símbolo `{0}` coincide con la palabra reservada de WGSL `{1}`: cámbiale el nombre o escribe el shader a mano",
+            Error::ExponentOutOfRange { .. } => "el exponente de unidad `{0}` está fuera del rango de la rejilla dimensional (un exponente semientero debe caber en un i16)",
+            Error::NotPolynomial { .. } => "se esperaba un polinomio univariante en `{0}`: `{0}` aparece dentro de una función, un denominador o una potencia no entera",
             Error::RootFindingFailed { .. } => "la búsqueda numérica de raíces falló: {0}; el polinomio puede estar mal condicionado — reescala la variable o reduce el grado",
             Error::IncompatibleUnits { .. } => "no se puede convertir `{0}` ({1}) a `{2}` ({3}): las dimensiones difieren",
             Error::ExponentZeroDenominator { .. } => "el exponente de unidad `{0}` tiene denominador cero",
@@ -794,6 +828,8 @@ impl Error {
             Error::NotEmittable(_) => "выражение невозможно сгенерировать: {0}",
             Error::UnsupportedOperation(_) => "неподдерживаемая операция: {0}",
             Error::WgslReservedWord { .. } => "символ `{0}` совпадает с зарезервированным словом WGSL `{1}`: переименуйте его или напишите шейдер вручную",
+            Error::ExponentOutOfRange { .. } => "показатель степени единицы `{0}` вне диапазона сетки размерностей (полуцелый показатель должен помещаться в i16)",
+            Error::NotPolynomial { .. } => "ожидается одномерный многочлен по `{0}`: `{0}` встречается внутри функции, знаменателя или нецелой степени",
             Error::RootFindingFailed { .. } => "численный поиск корней не удался: {0}; возможно, многочлен плохо обусловлен — масштабируйте переменную или понизьте степень",
             Error::IncompatibleUnits { .. } => "нельзя перевести `{0}` ({1}) в `{2}` ({3}): размерности различаются",
             Error::ExponentZeroDenominator { .. } => "знаменатель показателя степени единицы `{0}` равен нулю",
@@ -855,6 +891,8 @@ impl Error {
             Error::NotEmittable(_) => "لا يمكن توليد تعليمات برمجية من هذا التعبير: {0}",
             Error::UnsupportedOperation(_) => "عملية غير مدعومة: {0}",
             Error::WgslReservedWord { .. } => "الرمز `{0}` يتعارض مع الكلمة المحجوزة في WGSL `{1}`: غيّر اسمه أو اكتب الـ shader يدويًا",
+            Error::ExponentOutOfRange { .. } => "أس الوحدة `{0}` خارج نطاق شبكة الأبعاد (يجب أن يتسع الأس نصف الصحيح في i16)",
+            Error::NotPolynomial { .. } => "من المتوقع كثير حدود أحادي المتغير في `{0}`: يظهر `{0}` داخل دالة أو مقام أو أس غير صحيح",
             Error::RootFindingFailed { .. } => "فشل البحث العددي عن الجذور: {0}؛ قد تكون كثيرة الحدود سيئة الاشتراط — أعد قياس المتغير أو أنقص الدرجة",
             Error::IncompatibleUnits { .. } => "لا يمكن تحويل `{0}` ({1}) إلى `{2}` ({3}): الأبعاد مختلفة",
             Error::ExponentZeroDenominator { .. } => "مقام أس الوحدة `{0}` يساوي صفرًا",
@@ -1367,6 +1405,8 @@ impl Error {
                 to_dim,
             } => vec![from.clone(), from_dim.clone(), to.clone(), to_dim.clone()],
             Error::RootFindingFailed { reason } => vec![reason.clone()],
+            Error::ExponentOutOfRange { exponent } => vec![exponent.clone()],
+            Error::NotPolynomial { var } => vec![var.clone()],
             _ => Vec::new(),
         }
     }
@@ -1638,10 +1678,14 @@ mod catalogue_completeness_tests {
             Error::RootFindingFailed {
                 reason: "diverged".into(),
             },
+            Error::ExponentOutOfRange {
+                exponent: "1000000000/2".into(),
+            },
+            Error::NotPolynomial { var: "x".into() },
             Error::FormulaLabel(3),
             Error::Message("staged".into()),
         ];
-        assert_eq!(all.len(), 47, "update this list when a variant is added");
+        assert_eq!(all.len(), 49, "update this list when a variant is added");
         for err in &all {
             for locale in Locale::ALL {
                 let text = err.render(locale);
