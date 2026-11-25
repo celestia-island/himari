@@ -33,6 +33,13 @@ staging-budget:
 nostd:
     python3 scripts/nostd_check.py
 
+# Execute the emitted WGSL on a real Vulkan device and compare the numbers with the CPU lane.
+# Needs a Vulkan loader and a compute device; Mesa lavapipe (software) counts, a real GPU is
+# better. Exits 2 without printing a verdict when no device exists — absence of a device is not
+# evidence that the kernels are correct.
+gpu-verify:
+    cargo run -q -p himari-gpu-verify -- {{args}}
+
 # Generate the Lean proof obligation and check it with a real toolchain.
 # Needs `lean` on PATH or HIMARI_LEAN_BIN pointing at it (pinned: leanprover/lean4:v4.36.0).
 # Without one this exits non-zero on purpose: no toolchain means nothing was checked.
