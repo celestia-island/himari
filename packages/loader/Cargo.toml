@@ -1,6 +1,6 @@
 [package]
 name = "himari-loader"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Cross-file .formula library loader for himari: use directives, cycle detection, content locks."
 rust-version.workspace = true

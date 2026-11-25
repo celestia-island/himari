@@ -182,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "himari-fixture-nostd"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "himari",
  "himari-buildhelper",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "himari-fixture-three"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "himari",
  "himari-buildhelper",
@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "himari-fixture-tracked"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "himari-buildhelper",
  "himari-macros",

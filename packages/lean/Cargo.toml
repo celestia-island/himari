@@ -1,6 +1,6 @@
 [package]
 name = "himari-lean"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Lean 4 co-process for himari: generate self-contained proof obligations, drive `lean` as a subprocess, and cross-check the answer with an independent Rust oracle."
 rust-version.workspace = true

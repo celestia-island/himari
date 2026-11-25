@@ -1,4 +1,9 @@
 set shell := ["bash", "-c"]
+# `which()` (used by the devtools just module) needs list support, which is an
+# unstable setting on the pinned just 1.59 — the org convention (kirino/tairitsu/plana)
+# is `set unstable` + `set lists` together.
+set unstable
+set lists
 
 import? "./.just/celestia-devtools.just"
 
@@ -37,7 +42,7 @@ nostd:
 # Needs a Vulkan loader and a compute device; Mesa lavapipe (software) counts, a real GPU is
 # better. Exits 2 without printing a verdict when no device exists — absence of a device is not
 # evidence that the kernels are correct.
-gpu-verify:
+gpu-verify *args:
     cargo run -q -p himari-gpu-verify -- {{args}}
 
 # Generate the Lean proof obligation and check it with a real toolchain.
@@ -59,9 +64,10 @@ harness:
     cargo run -p himari-check --release
 
 # Canonical-format gate for .formula files + pest-comment guard (container lane).
+# The sandbox mounts THIS checkout (`$PWD` — works from the main checkout and from any worktree).
 fmt-check:
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-hygiene --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- python3 scripts/fmt_check.py
+        --src "$PWD" -- python3 scripts/fmt_check.py
 
 # Canonical-format a single formula file to stdout.
 fmt file:
@@ -91,23 +97,23 @@ lint:
 # 编译与 git 比对分开：前者生成，后者证明生成物与真源一致。
 regen:
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-regen --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- cargo build -p himari-fixture-three --offline
+        --src "$PWD" -- cargo build -p himari-fixture-three --offline
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-regen --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- cargo build -p himari-example-reentry --offline
+        --src "$PWD" -- cargo build -p himari-example-reentry --offline
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-regen --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- cargo build -p himari-example-common --offline
+        --src "$PWD" -- cargo build -p himari-example-common --offline
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-regen --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- cargo build -p himari-fixture-nostd --offline
+        --src "$PWD" -- cargo build -p himari-fixture-nostd --offline
 
 # Run the quickstart example (formula file → generated code → table + invariants).
 example:
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-example --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- cargo run -q -p himari-example-reentry --offline
+        --src "$PWD" -- cargo run -q -p himari-example-reentry --offline
 
 # Run the common matrix / linear-system / least-squares / roots examples.
 example-common:
     python3 /mnt/codespace/_tools/sandbox_run.py run --label himari-example --reuse-target \
-        --src /mnt/codespace/_worktree/himari/dev -- cargo run -q -p himari-example-common --offline
+        --src "$PWD" -- cargo run -q -p himari-example-common --offline
 
 # Drift gate: regenerate first, then compare checked-in code with its sources (host-side git).
 drift: regen

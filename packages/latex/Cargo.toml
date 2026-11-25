@@ -1,6 +1,6 @@
 [package]
 name = "himari-latex"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "LaTeX-subset front-end for himari: turns hand-written math into the dimensioned IR."
 rust-version.workspace = true

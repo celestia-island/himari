@@ -1,0 +1,12 @@
+# Version-track exemptions for `celestia-devtools verify-versions` (the trunk
+# Verify-Versions workflow). Everything not listed here must sit on the
+# workspace baseline (`version.workspace = true`; the value itself is defined
+# once, in the root Cargo.toml — deliberately not repeated here).
+
+[exempt.cargo]
+# Intentionally-failing compile probes: the crate exists to be compiled and
+# expected to FAIL, so its version carries no release meaning.
+"packages/check/fixtures/probe" = "expected-compile-failure probes"
+# Pre-0.1 demonstration crates under the examples/ segment are already skipped
+# by the tool; pinned here so the intent is explicit rather than implicit.
+"examples/*" = "demonstration crates, never published"

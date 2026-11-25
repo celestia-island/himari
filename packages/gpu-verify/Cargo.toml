@@ -1,6 +1,6 @@
 [package]
 name = "himari-gpu-verify"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Execute emitted WGSL compute kernels on a real Vulkan device and compare them with the CPU evaluation lane."
 rust-version.workspace = true
