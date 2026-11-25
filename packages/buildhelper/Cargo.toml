@@ -5,13 +5,11 @@ edition.workspace = true
 description = "build.rs helper for himari: compiles a directory of .formula files into checked-in Rust."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 
 [lib]
 path = "src/lib.rs"

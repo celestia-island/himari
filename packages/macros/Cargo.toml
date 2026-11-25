@@ -5,13 +5,11 @@ edition.workspace = true
 description = "Inline `formula!` macro lane for himari: short dimensioned expressions without a build step."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 
 [lib]
 proc-macro = true

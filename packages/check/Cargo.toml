@@ -5,7 +5,6 @@ edition.workspace = true
 description = "CLI and language server for himari: format, evaluate, find roots, diagnose, edit .formula files."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true

@@ -5,13 +5,11 @@ edition.workspace = true
 description = "MATLAB-style (matex) and Unicode-paper front-end for himari: the canonical human-readable surface."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 
 [dependencies]
 

@@ -30,7 +30,6 @@ rust-version = "1.90"
 license-file = "LICENSE.txt"
 authors = ["langyo <langyo.china@gmail.com>"]
 repository = "https://github.com/celestia-island/himari"
-documentation = "https://docs.rs/himari"
 readme = "README.md"
 # crates.io 类目：必须是官方列表里的 slug，否则 publish 被拒
 #   science  → 科学计算；mathematics；development-tools::build-utils（build.rs 车道）；

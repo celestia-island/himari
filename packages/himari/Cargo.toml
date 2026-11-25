@@ -5,13 +5,11 @@ edition.workspace = true
 description = "Dimensioned formula IR: parse LaTeX/MATLAB/paper notation once, check kg·m·s·A·K·mol·cd at compile time, and emit Rust."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 
 [dependencies]
 
