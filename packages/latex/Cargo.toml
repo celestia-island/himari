@@ -5,13 +5,11 @@ edition.workspace = true
 description = "LaTeX-subset front-end for himari: turns hand-written math into the dimensioned IR."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 
 [dependencies]
 

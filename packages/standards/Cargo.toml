@@ -5,13 +5,11 @@ edition.workspace = true
 description = "Typed calculators for published engineering standards (Brinell hardness, tensile properties, standard atmosphere, decimal rounding) with explicit provenance."
 rust-version.workspace = true
 license-file.workspace = true
-documentation.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 default-run = "himari-standard"
 
 [dependencies]
