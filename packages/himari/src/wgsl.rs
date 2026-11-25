@@ -501,7 +501,44 @@ fn wgsl_raw(e: &crate::Expr) -> Result<(String, u8), crate::Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::wgsl::validate_wgsl;
     use crate::{add, div, mul, neg, num, pow, var, Expr};
+
+    #[test]
+    fn validate_wgsl_pins_every_structure_rule() {
+        // H-2: each emitter self-check gets a kernel text that violates exactly that rule —
+        // before these pins, reverting a rule left every emission test green (only the staging
+        // gate noticed the reverted construction, not its broken logic).
+        let pin = |kernel: &str, fragment: &str| {
+            let err = validate_wgsl(kernel).expect_err(kernel);
+            assert_eq!(err.code(), "not-emittable", "{err:?}");
+            let text = err.render(crate::i18n::Locale::En);
+            assert!(text.contains(fragment), "{kernel:?} -> {text}");
+        };
+        // 1) an extra closing bracket
+        pin("fn f() -> f32 { return 1.0f; })", "an extra `)`");
+        // 1b) unbalanced opening bracket
+        pin("fn f() -> f32 { return 1.0f;", "unbalanced");
+        // 2) WGSL has no power operator
+        pin("fn f() -> f32 { return 2.0f ^ 3.0f; }", "power operator");
+        // 3) a float literal without the `f` suffix (plain and exponent forms)
+        pin("fn f() -> f32 { return 2.5; }", "lacks the `f` suffix");
+        pin("fn f() -> f32 { return 1e5; }", "lacks the `f` suffix");
+        // 4) non-finite constants
+        pin("fn f() -> f32 { return inff; }", "non-finite constant");
+        // 5) the signature must promise `-> f32`
+        pin("fn f() -> f64 { return 1.0f; }", "not `-> f32`");
+        // 6) a `return` must end with `;` (the check is per-line: the statement starts a line)
+        pin("fn f() -> f32 {\n    return 1.0f\n}", "must end with `;`");
+        // 6b) exactly one `return` statement
+        pin(
+            "fn f() -> f32 { return 1.0f; return 2.0f; }",
+            "exactly one `return`",
+        );
+        // 7) a `fn` definition must exist
+        pin("return 1.0f;", "no `fn` definition");
+    }
+
     use alloc::string::{String, ToString};
     use alloc::vec;
     use alloc::vec::Vec;

@@ -105,6 +105,16 @@ impl FrontError {
 
     /// Renders this error in `language`. Uncatalogued (`Raw`) errors keep their text.
     pub fn render_in(&self, language: i18n::Locale) -> String {
+        // A composed variant re-renders its inner error at the TARGET locale: the stored `args`
+        // were computed in English at construction, but the inner `Box<Error>` keeps the full
+        // variant, so frame and inner message translate together instead of the inner freezing
+        // in English.
+        if let i18n::Error::InEquation { index, error } = &*self.code {
+            let inner = error.render(language);
+            let owned = [index.to_string(), inner];
+            let refs: Vec<&str> = owned.iter().map(String::as_str).collect();
+            return i18n::render(&self.code, &refs, language);
+        }
         // Uncatalogued (`Message`) errors pass through verbatim inside `render`.
         let borrowed: Vec<&str> = self.args.iter().map(|a| a.as_str()).collect();
         i18n::render(&self.code, &borrowed, language)
@@ -2276,11 +2286,10 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
         }
         E::Call(name, args) => {
             let Some(arg) = args.first() else {
-                return Err(Error::FunctionArity {
-                    name: name.clone(),
-                    expected: 1,
-                    got: 0,
-                });
+                // The real arity is unknown until the function is identified, so claim only
+                // what is true: it needs an argument. A `FunctionArity { expected: 1 }` here
+                // would lie for every multi-argument function (`max()`).
+                return Err(Error::InvalidInput(format!("`{name}` needs an argument")));
             };
             if matches!(name.as_str(), "__quad_root_1" | "__quad_root_2") {
                 if args.len() != 3 {
@@ -3167,6 +3176,30 @@ fn is_zero_lit(e: &Expr) -> bool {
     matches!(e, Expr::Num(v) if *v == 0.0)
 }
 
+/// The `+` / `-` arm of the dimension check, shared except for the operator name: the operator
+/// is carried into the error so the message names the exact mismatch (a bare `{left} vs {right}`
+/// reads the same for `+` and `-`, which cost a debugging round-trip to tell apart).
+fn dim_addsub(a: &Expr, b: &Expr, op: &str, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
+    // `0` is the zero element of **any** dimension space: the `0 - x` produced by symbolic
+    // differentiation must not be judged a dimension conflict.
+    if is_zero_lit(a) {
+        return dim_check(b, dims);
+    }
+    if is_zero_lit(b) {
+        return dim_check(a, dims);
+    }
+    let da = dim_check(a, dims)?;
+    let db = dim_check(b, dims)?;
+    if da != db {
+        return Err(Error::OperatorDimensionMismatch {
+            operator: op.into(),
+            left: da.display(),
+            right: db.display(),
+        });
+    }
+    Ok(da)
+}
+
 pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
     use Expr::*;
     Ok(match e {
@@ -3178,25 +3211,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
             .get(n)
             .ok_or_else(|| Error::UndeclaredSymbol(n.clone()))?,
         Neg(a) => dim_check(a, dims)?,
-        Add(a, b) | Sub(a, b) => {
-            // `0` is the zero element of **any** dimension space: the `0 - x` produced by symbolic
-            // differentiation must not be judged a dimension conflict.
-            if is_zero_lit(a) {
-                return dim_check(b, dims);
-            }
-            if is_zero_lit(b) {
-                return dim_check(a, dims);
-            }
-            let da = dim_check(a, dims)?;
-            let db = dim_check(b, dims)?;
-            if da != db {
-                return Err(Error::DimensionMismatch {
-                    left: da.display(),
-                    right: db.display(),
-                });
-            }
-            da
-        }
+        Add(a, b) => dim_addsub(a, b, "+", dims)?,
+        Sub(a, b) => dim_addsub(a, b, "-", dims)?,
         Mul(a, b) => dim_check(a, dims)?.mul_dim(dim_check(b, dims)?),
         Div(a, b) => dim_check(a, dims)?.div_dim(dim_check(b, dims)?),
         Pow(a, b) => {
@@ -3263,11 +3279,9 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
         }
         Call(name, args) => {
             let Some(arg0) = args.first() else {
-                return Err(Error::FunctionArity {
-                    name: name.clone(),
-                    expected: 1,
-                    got: 0,
-                });
+                // Same as the eval lane: the real arity is unknown until the function is
+                // identified, so claim only what is true.
+                return Err(Error::InvalidInput(format!("`{name}` needs an argument")));
             };
             // The system form `solve([eq…], [x…])`: `arg0` is a **list of equations**,
             // each equation only needs to be **homogeneous under addition/subtraction** on its
@@ -5168,23 +5182,31 @@ pub fn solve_system(eqs: &[Expr], vars: &[String]) -> Result<Expr, Error> {
     // Augmented matrix [A | −b]: eq_i = Σ_j a_ij·v_j + b_i = 0 ⟺ A·v = −b
     let mut aug: Vec<Vec<Expr>> = Vec::with_capacity(m);
     for (i, eq) in eqs.iter().enumerate() {
-        // Propagate the typed error: wrapping it in a `String` here (with the equation index)
-        // downgraded every catalogue variant back to `Message`.
-        let (a, b) = lin_coeffs_multi(eq, vars)?;
+        // Propagate the typed error, wrapped with the equation's 1-based position: the
+        // `InEquation` composition keeps the inner variant catalogued (never downgraded to a
+        // `Message`) and re-renders the inner message in the target locale, so "which equation"
+        // survives without losing the nine-language rendering.
+        let (a, b) = lin_coeffs_multi(eq, vars).map_err(|error| Error::InEquation {
+            index: i + 1,
+            error: Box::new(error),
+        })?;
         // Matrix-valued coefficients: the solution would be a matrix division, and the scalar lane
         // would generate code like
         // `f64 / Vec<Vec<f64>>` that does not compile — the same guard as the single-variable lane
         for (j, aj) in a.iter().enumerate() {
             if is_matrix_value(&simplify(aj)) {
-                return Err(Error::MatrixCoefficient(vars[j].clone()));
+                return Err(Error::InEquation {
+                    index: i + 1,
+                    error: Box::new(Error::MatrixCoefficient(vars[j].clone())),
+                });
             }
         }
         if is_matrix_value(&simplify(&b)) {
-            // The constant term has no variable name; name it by role.
-            return Err(Error::MatrixCoefficient(format!(
-                "<constant of equation {}>",
-                i + 1
-            )));
+            // The constant term has no variable name; the wrapper already names the equation.
+            return Err(Error::InEquation {
+                index: i + 1,
+                error: Box::new(Error::MatrixCoefficient("<constant>".into())),
+            });
         }
         let mut row = a;
         row.push(neg(b));
@@ -8306,13 +8328,22 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.code(), "inconsistent", "{err}");
-        // Non-linear: x·y appears on both sides of a multiplication
+        // Non-linear: x·y appears on both sides of a multiplication — wrapped with the equation
+        // position (equation 1), inner variant preserved
         let err = solve_system(
             &[sub(mul(x.clone(), y.clone()), num(1.0))],
             &["x".into(), "y".into()],
         )
         .unwrap_err();
-        assert_eq!(err.code(), "nonlinear-equation", "{err}");
+        assert_eq!(err.code(), "in-equation", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("in equation 1:"),
+            "{err}"
+        );
+        let Error::InEquation { error: inner, .. } = &err else {
+            panic!("{err:?}")
+        };
+        assert_eq!(inner.code(), "nonlinear-equation", "{err:?}");
         // Duplicate unknown names
         let err = solve_system(&[sub(x.clone(), num(1.0))], &["x".into(), "x".into()]).unwrap_err();
         assert_eq!(err.code(), "invalid-input", "{err}");
@@ -8356,9 +8387,16 @@ mod tests {
         )
         .unwrap_err();
         match &err {
-            // The multi-variable lane identifies the equation, not one variable, so only the
-            // reason is pinned here.
-            Error::NonlinearEquation { why, .. } => {
+            // The multi-variable lane wraps the per-equation failure with its position; the
+            // inner variant stays catalogued, so only the reason is pinned here.
+            Error::InEquation {
+                index,
+                error: inner,
+            } => {
+                assert_eq!(*index, 1, "{err:?}");
+                let Error::NonlinearEquation { why, .. } = &**inner else {
+                    panic!("the inner variant must survive the wrap: {err:?}")
+                };
                 assert!(why.contains("exponent"), "{why}");
             }
             other => panic!("{other:?}"),
@@ -8570,7 +8608,8 @@ mod tests {
             ],
         );
         let err = dim_check(&bad, &dims).unwrap_err();
-        assert_eq!(err.code(), "dimension-mismatch", "{err}");
+        assert_eq!(err.code(), "operator-dimension-mismatch", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("`-`"), "{err}");
     }
 
     #[test]
@@ -8662,10 +8701,27 @@ mod tests {
         let x = var("x");
         let err =
             solve_system(&[sub(mul(mat.clone(), x.clone()), var("b"))], &["x".into()]).unwrap_err();
-        assert_eq!(err.code(), "matrix-coefficient", "{err}");
-        // A matrix-valued constant term is rejected likewise
+        assert_eq!(err.code(), "in-equation", "{err}");
+        let Error::InEquation {
+            index,
+            error: inner,
+        } = &err
+        else {
+            panic!("{err:?}")
+        };
+        assert_eq!(*index, 1, "{err:?}");
+        assert_eq!(inner.code(), "matrix-coefficient", "{err:?}");
+        // A matrix-valued constant term is rejected likewise — the wrapper names the equation,
+        // so the constant coefficient no longer has to name it itself
         let err = solve_system(&[sub(x.clone(), mat)], &["x".into()]).unwrap_err();
-        assert_eq!(err.code(), "matrix-coefficient", "{err}");
+        assert_eq!(err.code(), "in-equation", "{err}");
+        let Error::InEquation { error: inner, .. } = &err else {
+            panic!("{err:?}")
+        };
+        let Error::MatrixCoefficient(name) = &**inner else {
+            panic!("{err:?}")
+        };
+        assert_eq!(name, "<constant>", "{err:?}");
     }
 
     #[test]
@@ -9698,7 +9754,8 @@ mod tests {
             ],
         );
         let err = dim_check(&bad, &dims).unwrap_err();
-        assert_eq!(err.code(), "dimension-mismatch", "{err}");
+        assert_eq!(err.code(), "operator-dimension-mismatch", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("`-`"), "{err}");
     }
 
     #[test]
@@ -9750,7 +9807,7 @@ mod tests {
         let mut bad = dims.clone();
         bad.insert("x".to_string(), parse_unit("s").unwrap());
         let err = dim_check(&call, &bad).unwrap_err();
-        assert_eq!(err.code(), "dimension-mismatch", "{err}");
+        assert_eq!(err.code(), "operator-dimension-mismatch", "{err}");
     }
 
     #[test]
@@ -10184,5 +10241,193 @@ mod tests {
             "{err}"
         );
         let _ = eqs;
+    }
+    // ---------------- coverage pins for the ledger's remaining H items ----------------
+    // Each catalogued branch that the staging gate was the ONLY pin for gets a behavior test
+    // here: the branch's identity is asserted by `code()` plus a distinctive fragment, so
+    // reverting the construction goes red in this file.
+
+    #[test]
+    fn a_zero_argument_call_names_the_function() {
+        // H-4a: the arity is unknown before the function is identified, so the message claims
+        // only what is true (`FunctionArity { expected: 1 }` lied for every multi-argument fn).
+        let err = eval_value(&Expr::Call("max".into(), vec![]), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("`max`"), "{err}");
+        let dims = HashMap::new();
+        let err = dim_check(&Expr::Call("sin".into(), vec![]), &dims).unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("`sin`"), "{err}");
+    }
+
+    #[test]
+    fn an_empty_unit_string_and_a_zero_scale_denominator_are_typed() {
+        // H-3: both branches were pinned only by the staging gate before this test.
+        let err = parse_unit_spec("").unwrap_err();
+        assert_eq!(err.code(), "malformed-unit", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("empty unit string"),
+            "{err}"
+        );
+        let err = convert(1.0, "", "m").unwrap_err();
+        assert_eq!(err.code(), "malformed-unit", "{err}");
+        let err = parse_unit("m").unwrap().scale_ratio(1, 0).unwrap_err();
+        assert_eq!(err.code(), "exponent-zero-denominator", "{err}");
+    }
+
+    #[test]
+    fn trace_rejects_a_non_square_matrix() {
+        // H-5: the squareness guard.
+        let m = Expr::Mat(vec![
+            vec![num(1.0), num(2.0)],
+            vec![num(3.0), num(4.0)],
+            vec![num(5.0), num(6.0)],
+        ]);
+        let err = eval_value(&Expr::Call("trace".into(), vec![m]), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "shape-mismatch", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("square"), "{err}");
+    }
+
+    #[test]
+    fn incompatible_units_reports_its_code() {
+        // H-5: the code string had no pin (renaming it left `cargo test` green).
+        let err = convert(1.0, "nF", "V").unwrap_err();
+        assert_eq!(err.code(), "incompatible-units", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("cannot convert `nF`"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_shape_lane_rejects_matrix_division_itself() {
+        // H-5: the `shape_check` `Div` branch — the runtime site had a test, this lane did not.
+        let a = Expr::Mat(vec![vec![num(2.0), num(4.0)]]);
+        let b = Expr::Mat(vec![vec![num(2.0), num(2.0)]]);
+        let err = shape_check(&div(a, b)).unwrap_err();
+        assert_eq!(err.code(), "matrix-division-unsupported", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("inv(A) * b"), "{err}");
+    }
+
+    #[test]
+    fn quad_root_arity_guards_bite_in_both_lanes() {
+        // H-6: the two `__quad_root_*` arity guards (evaluation and dimension lanes).
+        let dims = HashMap::new();
+        let one = eval_value(
+            &Expr::Call("__quad_root_1".into(), vec![var("x")]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(one.code(), "function-arity", "{one}");
+        let four = eval_value(
+            &Expr::Call(
+                "__quad_root_2".into(),
+                vec![var("x"), var("y"), var("z"), var("w")],
+            ),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(four.code(), "function-arity", "{four}");
+        let one_d =
+            dim_check(&Expr::Call("__quad_root_1".into(), vec![var("x")]), &dims).unwrap_err();
+        assert_eq!(one_d.code(), "function-arity", "{one_d}");
+        let four_d = dim_check(
+            &Expr::Call(
+                "__quad_root_2".into(),
+                vec![var("x"), var("y"), var("z"), var("w")],
+            ),
+            &dims,
+        )
+        .unwrap_err();
+        assert_eq!(four_d.code(), "function-arity", "{four_d}");
+    }
+
+    #[test]
+    fn sum_bounds_must_be_dimensionless() {
+        // H-6: the sum-bound guard.
+        let mut dims = HashMap::new();
+        dims.insert("u".to_string(), parse_unit("Pa").unwrap());
+        dims.insert("t".to_string(), Dim::ZERO);
+        let err = dim_check(
+            &Expr::Sum {
+                var: "u".into(),
+                lower: Box::new(var("t")),
+                upper: Box::new(var("u")),
+                body: Box::new(var("t")),
+            },
+            &dims,
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("dimensionless"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_function_in_the_dim_lane_falls_back_without_suggestion() {
+        // H-6: the dim lane's `UnknownFunction` fallback (the eval lane's typo path was pinned;
+        // this lane's was not). The fallback constructs an empty suggestion on purpose.
+        let mut dims = HashMap::new();
+        dims.insert("t".to_string(), Dim::ZERO);
+        let err = dim_check(&Expr::Call("no_such_fn".into(), vec![var("t")]), &dims).unwrap_err();
+        assert_eq!(err.code(), "unknown-function", "{err}");
+        let Error::UnknownFunction { name, suggestion } = &err else {
+            panic!("{err:?}")
+        };
+        assert_eq!(name, "no_such_fn");
+        assert!(suggestion.is_empty(), "{suggestion:?}");
+    }
+
+    #[test]
+    fn solve_system_names_the_failing_equation_in_both_frames() {
+        // H-7: "which equation" is back — without downgrading the inner variant to a `Message`.
+        let linear = sub(var("x"), num(1.0));
+        let nonlinear = mul(var("x"), var("y")); // x·y is linear in neither unknown alone
+        let err = solve_system(&[linear, nonlinear], &["x".into(), "y".into()]).unwrap_err();
+        assert_eq!(err.code(), "in-equation", "{err}");
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("in equation 2:"), "{en}");
+        assert!(en.contains("not linear in"), "{en}");
+        // The composed variant re-renders the INNER message in the target locale: frame and
+        // inner are Japanese together (the property the retired `map_err`-to-`String` design
+        // could not provide).
+        let ja = err.render(i18n::Locale::Ja);
+        assert!(ja.contains("2 番目の方程式："), "{ja}");
+        assert!(ja.contains("線形ではありません"), "{ja}");
+        // `in_locale` goes through the same composite path (`FrontError::render_in`).
+        let front = FrontError::plain(err);
+        let ja_front = front.in_locale(i18n::Locale::Ja);
+        assert!(
+            ja_front.msg.contains("線形ではありません"),
+            "{}",
+            ja_front.msg
+        );
+    }
+
+    #[test]
+    fn in_equation_renders_the_inner_in_the_target_locale() {
+        let composed = Error::InEquation {
+            index: 3,
+            error: Box::new(Error::UndeclaredSymbol("k".into())),
+        };
+        assert_eq!(composed.code(), "in-equation");
+        let ja = composed.render(i18n::Locale::Ja);
+        assert!(ja.contains("3 番目の方程式："), "{ja}");
+        assert!(ja.contains("`k`"), "{ja}");
+        let en = composed.render(i18n::Locale::En);
+        assert!(en.contains("in equation 3:"), "{en}");
+        assert!(en.contains("`k`"), "{en}");
+    }
+    #[test]
+    fn a_diverging_dk_iteration_is_catalogued() {
+        // H-9a: the DK inf/NaN divergence arm had no input reaching it — `1e308 + x²` blows the
+        // iteration up immediately (a leading coefficient at the f64 ceiling makes every
+        // intermediate non-finite).
+        let err = numeric_roots(&[1e308, 0.0, 1.0]).unwrap_err();
+        assert_eq!(err.code(), "root-finding-failed", "{err}");
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("inf/NaN"), "{en}");
     }
 }
