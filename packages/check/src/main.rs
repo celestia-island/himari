@@ -1352,8 +1352,8 @@ fn complex_rows(rows: &mut Vec<Row>) {
 
     // 5) Rejection: complex values must not quietly take the scalar entry point
     let typed = himari::eval(&re, &HashMap::new()).unwrap_err();
-    // Staging `Message`: assert the payload (the reason names the complex result), not a locale.
-    let names_complex = matches!(&typed, himari::Error::Message(m) if m.contains("复数"));
+    // Catalogued: assert the typed variant, not a locale's wording.
+    let names_complex = matches!(&typed, himari::Error::ComplexEvalResult { .. });
     let err = typed.render(himari::i18n::Locale::En);
     push(
         rows,
@@ -1665,7 +1665,7 @@ fn dimension_rows(rows: &mut Vec<Row>) {
         && bad_dim
             .as_ref()
             .err()
-            .map(|e| matches!(e, himari::Error::Message(ref m) if m.contains("凑不出")))
+            .map(|e| matches!(e, himari::Error::TargetDimensionUnreachable { .. }))
             .unwrap_or(false);
     push(
         rows,

@@ -192,7 +192,9 @@ fn scalar_eval_rejects_complex() {
     let set = himari_matlab::parse("decl {\n    r : resistance [V/A];\n}\n1 + j\n").unwrap();
     let (_, e) = set.into_single();
     let err = himari::eval(&e, &std::collections::HashMap::new()).unwrap_err();
-    assert!(err.render(himari::i18n::Locale::En).contains("复数"));
+    assert_eq!(err.code(), "complex-eval-result", "{err}");
+    let en = err.render(himari::i18n::Locale::En);
+    assert!(en.contains("complex") && en.contains("eval_value"), "{en}");
 }
 
 #[test]
