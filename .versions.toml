@@ -1,6 +1,7 @@
 # Version-track exemptions for `celestia-devtools verify-versions` (the trunk
 # Verify-Versions workflow). Everything not listed here must sit on the
-# workspace baseline (`version.workspace = true`, currently 0.1.0).
+# workspace baseline (`version.workspace = true`; the value itself is defined
+# once, in the root Cargo.toml — deliberately not repeated here).
 
 [exempt.cargo]
 # Intentionally-failing compile probes: the crate exists to be compiled and
