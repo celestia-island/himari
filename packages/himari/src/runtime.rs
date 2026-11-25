@@ -829,7 +829,9 @@ pub fn dim_check_runtime(
             }
         }
         if name == "det" && !args.is_empty() && uses_runtime_values(&args[0], shapes) {
-            return Err(Error::Message("runtime determinant dimensions depend on matrix order; add a static-order lane before using det on a runtime matrix".to_string()));
+            return Err(Error::UnsupportedOperation(
+                "runtime determinant dimensions depend on matrix order; add a static-order lane before using det on a runtime matrix".to_string(),
+            ));
         }
     }
     if let Expr::Indexed { name, indices } = expr {

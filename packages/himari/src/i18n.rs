@@ -230,6 +230,12 @@ pub enum Error {
         declared: String,
         line: usize,
     },
+    /// A symbol identifier collides with a WGSL reserved word, so the emitted shader would not
+    /// compile. Rename the symbol or write the shader by hand.
+    WgslReservedWord {
+        name: String,
+        id: String,
+    },
     /// A user-visible label for an unnamed formula ("formula #3"), localized like a message.
     FormulaLabel(usize),
     /// A message that has not been catalogued yet. Rendering returns it verbatim, so a
@@ -296,6 +302,7 @@ impl Error {
             Error::ShapeError(_) => "shape-error",
             Error::NotEmittable(_) => "not-emittable",
             Error::UnsupportedOperation(_) => "unsupported-operation",
+            Error::WgslReservedWord { .. } => "wgsl-reserved-word",
             Error::IoError(_) => "io-error",
         }
     }
@@ -337,6 +344,7 @@ impl Error {
             Error::ShapeError(_) => "shape error: {0}",
             Error::NotEmittable(_) => "the expression cannot be emitted: {0}",
             Error::UnsupportedOperation(_) => "unsupported operation: {0}",
+            Error::WgslReservedWord { .. } => "symbol `{0}` collides with the WGSL reserved word `{1}`: rename it or write the shader by hand",
             Error::IoError(_) => "I/O error: {0}",
             // `render` returns the message verbatim before consulting templates.
             Error::Message(_) => "{0}",
@@ -388,6 +396,9 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "指数 `{0}` 不是 1/2 的整数倍，量纲无定义",
             Error::NotEmittable(_) => "该表达式无法发射为代码：{0}",
             Error::UnsupportedOperation(_) => "不支持的操作：{0}",
+            Error::WgslReservedWord { .. } => {
+                "符号 `{0}` 与 WGSL 保留字 `{1}` 撞名：改个名字，或手写 shader"
+            }
             Error::IoError(_) => "I/O 错误：{0}",
             Error::MatrixCoefficient(_) => {
                 "方程里 `{0}` 的系数是矩阵值：请解标量方程组或写 inv(A) * b"
@@ -441,6 +452,9 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "指數 `{0}` 不是 1/2 的整數倍，量綱無定義",
             Error::NotEmittable(_) => "此運算式無法產生程式碼：{0}",
             Error::UnsupportedOperation(_) => "不支援的操作：{0}",
+            Error::WgslReservedWord { .. } => {
+                "符號 `{0}` 與 WGSL 保留字 `{1}` 撞名：改個名字，或手寫 shader"
+            }
             Error::IoError(_) => "I/O 錯誤：{0}",
             Error::MatrixCoefficient(_) => {
                 "方程式裡 `{0}` 的係數是矩陣值：請解純量方程組或寫 inv(A) * b"
@@ -488,6 +502,7 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "指数 `{0}` は 1/2 の整数倍ではないため、次元が定義できません",
             Error::NotEmittable(_) => "この式はコードとして出力できません：{0}",
             Error::UnsupportedOperation(_) => "未対応の操作です：{0}",
+            Error::WgslReservedWord { .. } => "シンボル `{0}` は WGSL の予約語 `{1}` と衝突します：名前を変えるか、シェーダーを手書きしてください",
             Error::IoError(_) => "I/O エラー：{0}",
             Error::MatrixCoefficient(_) => "式中の `{0}` の係数が行列です：スカラー連立方程式を解くか inv(A) * b と書いてください",
             Error::FormulaLabel(_) => "{0} 番目の式",
@@ -532,6 +547,7 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "지수 `{0}` 가 1/2 의 정수배가 아니어서 차원을 정의할 수 없습니다",
             Error::NotEmittable(_) => "이 식은 코드로 내보낼 수 없습니다: {0}",
             Error::UnsupportedOperation(_) => "지원하지 않는 연산입니다: {0}",
+            Error::WgslReservedWord { .. } => "기호 `{0}`이(가) WGSL 예약어 `{1}`와 충돌합니다: 이름을 바꾸거나 셰이더를 직접 작성하세요",
             Error::IoError(_) => "I/O 오류: {0}",
             Error::MatrixCoefficient(_) => "`{0}` 의 계수가 행렬입니다: 스칼라 연립방정식을 풀거나 inv(A) * b 를 쓰세요",
             Error::FormulaLabel(_) => "{0}번째 수식",
@@ -576,6 +592,7 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "exposant `{0}` non multiple de 1/2 : la dimension n'est pas définie",
             Error::NotEmittable(_) => "cette expression ne peut pas être émise : {0}",
             Error::UnsupportedOperation(_) => "opération non prise en charge : {0}",
+            Error::WgslReservedWord { .. } => "le symbole `{0}` entre en conflit avec le mot réservé WGSL `{1}` : renomme-le ou écris le shader à la main",
             Error::IoError(_) => "erreur d'E/S : {0}",
             Error::MatrixCoefficient(_) => "le coefficient de `{0}` est une matrice : résolvez un système scalaire ou écrivez inv(A) * b",
             Error::FormulaLabel(_) => "formule n° {0}",
@@ -620,6 +637,7 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "exponente `{0}` no es múltiplo de 1/2: la dimensión no está definida",
             Error::NotEmittable(_) => "esta expresión no puede emitirse: {0}",
             Error::UnsupportedOperation(_) => "operación no soportada: {0}",
+            Error::WgslReservedWord { .. } => "el símbolo `{0}` coincide con la palabra reservada de WGSL `{1}`: cámbiale el nombre o escribe el shader a mano",
             Error::IoError(_) => "error de E/S: {0}",
             Error::MatrixCoefficient(_) => "el coeficiente de `{0}` es una matriz: resuelva un sistema escalar o escriba inv(A) * b",
             Error::FormulaLabel(_) => "fórmula n.º {0}",
@@ -664,6 +682,7 @@ impl Error {
             Error::ExponentNotHalfInteger(_) => "показатель `{0}` не кратен 1/2, размерность не определена",
             Error::NotEmittable(_) => "выражение невозможно сгенерировать: {0}",
             Error::UnsupportedOperation(_) => "неподдерживаемая операция: {0}",
+            Error::WgslReservedWord { .. } => "символ `{0}` совпадает с зарезервированным словом WGSL `{1}`: переименуйте его или напишите шейдер вручную",
             Error::IoError(_) => "ошибка ввода-вывода: {0}",
             Error::MatrixCoefficient(_) => "коэффициент при `{0}` — матрица: решайте скалярную систему или пишите inv(A) * b",
             Error::FormulaLabel(_) => "формула № {0}",
@@ -716,6 +735,7 @@ impl Error {
             }
             Error::NotEmittable(_) => "لا يمكن توليد تعليمات برمجية من هذا التعبير: {0}",
             Error::UnsupportedOperation(_) => "عملية غير مدعومة: {0}",
+            Error::WgslReservedWord { .. } => "الرمز `{0}` يتعارض مع الكلمة المحجوزة في WGSL `{1}`: غيّر اسمه أو اكتب الـ shader يدويًا",
             Error::IoError(_) => "خطأ في الإدخال/الإخراج: {0}",
             Error::MatrixCoefficient(_) => "معامل `{0}` مصفوفة: حلّ نظامًا قياسيًا أو اكتب inv(A) * b",
             Error::FormulaLabel(_) => "الصيغة رقم {0}",
@@ -1204,6 +1224,7 @@ impl Error {
                 vec![format!("{residual:.6e}"), format!("{limit:.6e}")]
             }
             Error::NoRealRoots { discriminant } => vec![format!("{discriminant:.6e}")],
+            Error::WgslReservedWord { name, id } => vec![name.clone(), id.clone()],
             _ => Vec::new(),
         }
     }
@@ -1425,10 +1446,14 @@ mod catalogue_completeness_tests {
                 declared: "Pa".into(),
                 line: 7,
             },
+            Error::WgslReservedWord {
+                name: "loop".into(),
+                id: "loop".into(),
+            },
             Error::FormulaLabel(3),
             Error::Message("staged".into()),
         ];
-        assert_eq!(all.len(), 38, "update this list when a variant is added");
+        assert_eq!(all.len(), 39, "update this list when a variant is added");
         for err in &all {
             for locale in Locale::ALL {
                 let text = err.render(locale);
@@ -1437,6 +1462,23 @@ mod catalogue_completeness_tests {
                     assert!(
                         !text.contains(slot),
                         "{} leaked {slot} in {locale:?}: {text}",
+                        err.code()
+                    );
+                }
+                // Every argument must be referenced by the template: a locale that drops a
+                // placeholder silently loses information, and the leftover check above cannot
+                // see it (a template with no `{1}` renders cleanly with an unused argument).
+                // `UnknownFunction` composes its second argument (the spelling advice) in
+                // `render`, locale by locale, rather than in the template — see the note there.
+                let composed_in_render = matches!(err, Error::UnknownFunction { .. });
+                let template = err.template(locale);
+                for i in 0..err.arguments().len() {
+                    if composed_in_render && i == 1 {
+                        continue;
+                    }
+                    assert!(
+                        template.contains(&format!("{{{i}}}")),
+                        "{} in {locale:?} never uses argument {i}: {template}",
                         err.code()
                     );
                 }
