@@ -2474,9 +2474,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             "`∂` is a symbolic operator: differentiate symbolically first, or use a finite difference".into(),
         )),
         E::Grad(_) | E::Laplacian(_) => {
-            return Err(
-                ("∇/∇² 是符号算子：数值求值需要离散化（走生成代码车道）".to_string()).into(),
-            )
+            return Err(Error::UnsupportedOperation(
+                "`∇`/`∇²` are symbolic operators: numeric evaluation needs a discretisation (use the code-generation lane)".into(),
+            ))
         }
         E::Indexed { .. } => {
             return Err(Error::UnsupportedOperation(
@@ -2484,9 +2484,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
         ))
         }
         E::MatPattern(_) => {
-            return Err(
-                ("求值不支持模式矩阵（先 recognize_pattern 再走生成代码）".to_string()).into(),
-            )
+            return Err(Error::UnsupportedOperation(
+                "evaluation does not take pattern matrices (call `recognize_pattern` first, then use the code-generation lane)".into(),
+            ))
         }
     })
 }
@@ -10412,6 +10412,26 @@ mod tests {
         assert!(en.contains("in equation 3:"), "{en}");
         assert!(en.contains("`k`"), "{en}");
     }
+    #[test]
+    fn the_eval_lane_refuses_operators_and_patterns_with_typed_variants() {
+        // Two sites used to launder `("…".to_string()).into()` into `Error::Message` (the
+        // `From<String>` channel the gate cannot type-check). They are `UnsupportedOperation`
+        // now, and the payload renders in every locale.
+        let err = eval_value(&Expr::Grad(Box::new(var("u"))), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "unsupported-operation", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("symbolic operators"),
+            "{err}"
+        );
+        let p = pat(vec![vec![el(num(1.0)), D], vec![D, el(num(1.0))]]);
+        let err = eval_value(&Expr::MatPattern(p), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "unsupported-operation", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("pattern matrices"),
+            "{err}"
+        );
+    }
+
     #[test]
     fn a_diverging_dk_iteration_is_catalogued() {
         // H-9a: the DK inf/NaN divergence arm had no input reaching it — `1e308 + x²` blows the
