@@ -639,14 +639,14 @@ es una variante que **lleva sus datos**, lo que da tres cosas a la vez.
 que `downcast_ref::<himari::Error>()` recupere el código tras `anyhow::Context`, y la regla de que
 el mismo error se representa distinto en los nueve idiomas mientras el código no cambia.
 
-`Error::Message(String)` sigue existiendo para los mensajes aún no catalogados. Se muestra tal cual en
-todos los idiomas, así que la migración por etapas es visible **en el tipo** en lugar de fingir estar
-traducida. Esta deuda se **mide con una puerta**, no con prosa: `python3 scripts/staging_budget.py` cuenta todos los productores no catalogados de cada árbol de producción del espacio de trabajo (`packages/`, `examples/`, `tools/`) (`Error::from(`, `Error::Message(`, y en los front-ends `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`), excluyendo pruebas y el propio catálogo, y falla si el total supera el techo registrado (el techo vive en `tools/staging-budget/src/ceiling.txt` y solo puede bajar). La puerta es un recorrido del AST (`tools/staging-budget`, sobre `syn`): el recuento no depende del diseño de líneas, espacios ni comentarios, y un *patrón* como `matches!(e, Error::Message(m) if …)` nunca se confunde con una construcción. El techo solo puede bajar, y eso se aplica: CI ejecuta la puerta con `--against-git`, lee `tools/staging-budget/src/ceiling.txt` en `HEAD` y falla si el techo del árbol de trabajo es más alto. Las 38 variantes del catálogo quedan fijadas por `catalogue_completeness_tests`, que construye todas y las representa en los nueve idiomas (no vacías, sin `{n}` que se filtre). Los *títulos* de corrección rápida del LSP siguen en chino; sus diagnósticos están localizados.
+`Error::Message(String)` sigue existiendo para los mensajes que nunca entran al catálogo; se muestra tal cual en todos los idiomas. La deuda de puesta en espera que representa se **mide con una puerta**, no con prosa — y esa deuda ahora mismo es cero:
 
 ```text
 python3 scripts/staging_budget.py                # counts + ceiling
-python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs HEAD
+python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs the merge base
 ```
+
+Es un recorrido del AST (`tools/staging-budget`, sobre `syn`): el recuento no depende del diseño de líneas, espacios ni comentarios, y un *patrón* como `matches!(e, Error::Message(m) if …)` nunca se confunde con una construcción. Se cuentan doce cubos en tres familias en cada árbol de producción del espacio de trabajo (`packages/`, `examples/`, `tools/`): las seis formas de construcción literales (`Error::from(`, `Error::Message(`, y en los front-ends `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`), los embudos de lavado de valores (`plain` / `new` con una carga útil de valor en tiempo de ejecución, y `FrontError::plain` pasado como referencia de función, ambos en todo el repositorio), y las formas de puesta en espera de cadenas (`ok_or`/`ok_or_else`/`map_err` que producen cadenas en espera, y `Err(format!(…))`) dentro del propio crate del catálogo. Los ítems compilados solo bajo pruebas y el catálogo se omiten; una variante catalogada construida con una carga útil de cadena (p. ej. `Error::SyntaxError(text)`) no es puesta en espera y no se cuenta. La puerta falla si el total supera el techo registrado (el techo vive en `tools/staging-budget/src/ceiling.txt` y solo puede bajar; ahora está en `0`). El techo solo puede bajar, y eso se aplica: CI (y `just verify`) ejecutan la puerta con `--against-git`, que lee `tools/staging-budget/src/ceiling.txt` en la **base de fusión con el tronco remoto** y falla si el techo del árbol de trabajo es más alto — así que no se pueden colar sitios nuevos junto con un techo elevado. El comando pelado de arriba solo comprueba el recuento. Las 51 variantes del catálogo quedan fijadas por `catalogue_completeness_tests`, que construye las 50 variantes del catálogo más la `Message` de puesta en espera y las representa en los nueve idiomas (no vacías, sin `{n}` que se filtre). Los *títulos* de corrección rápida del LSP siguen en chino; sus diagnósticos están localizados.
 
 ### Integración con el editor (LSP)
 
@@ -938,8 +938,7 @@ Además, tint (la implementación de Chrome/Dawn) y naga difieren en algunas reg
 | sistemas lineales de tamaño dinámico | carril en tiempo de ejecución (decls `_matrix`/`_vector`) | `solve(A,b)` está comprobado (rcond + residuo); devuelve `Result` |
 | exploración dimensional | `himari-eval --groups` | grupos Π de Buckingham: sin derivar a mano el número de Reynolds |
 
-> También sobrevive algo de texto en chino al otro lado: los comentarios de doc del código generado y las cadenas de diagnóstico, porque los
-> mensajes de este carril están actualmente escritos en chino (véase el comentario de doc citado arriba). Son literales de cadena de una línea.
+> Lo que aún lleva chino es el *otro* lado: los comentarios de doc del código generado, los diagnósticos `FORMULA-ERROR` de la proc-macro, y los títulos de corrección rápida del LSP — nada de eso es una ruta del catálogo de errores. La deuda de puesta en espera del catálogo es cero, y la puerta staging-budget de arriba (doce familias de construcción, techo aplicado contra la base de fusión) es lo que la mantiene ahí.
 
 **Errores con caret**, **sugerencias para nombres de función mal escritos** (`closest_func`, distancia de edición ≤ 2),
 **rechazo de caracteres invisibles**, **límites de profundidad/pasos** — no son guarnición, son el listón para «atreverse a dejar que un colega use esto».

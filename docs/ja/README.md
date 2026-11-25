@@ -639,13 +639,14 @@ crate 内のあらゆる失敗は 1 つの enum `himari::Error` です。文字�
 境界、`anyhow::Context` を経た後でも `downcast_ref::<himari::Error>()` でコードを取り戻せること、
 そして「同じエラーが 9 言語で異なる描画になり、コードは常に同一」であること。
 
-未登録のメッセージは `Error::Message(String)` に残ります。どの言語でもそのまま出力されるため、
-段階的な移行が**型として**見えます（翻訳済みのふりをしません）。この負債は**文章ではなくゲート**で測ります：`python3 scripts/staging_budget.py` はワークスペースの全生産ツリー（`packages/`、`examples/`、`tools/`）内の未カタログ化プロデューサー（`Error::from(`、`Error::Message(`、フロントエンドの `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`）を、テストとカタログ自身を除いて数え、記録された上限（上限は `tools/staging-budget/src/ceiling.txt` に記録され、下げることしかできません）を超えると失敗します。ゲートは AST 走査（`tools/staging-budget`、`syn` 基于）で、行構成・空白・コメントに依存せず、`matches!(e, Error::Message(m) if …)` のような**パターン**が構築と誤判定されることはありません。上限は下がるだけで、それは強制されます：CI は `--against-git` でゲートを実行し、`HEAD` の `tools/staging-budget/src/ceiling.txt` を読み、作業ツリーの上限がより高ければ失敗します。全 38 変体は `catalogue_completeness_tests` が固定します——各変体を構築し 9 言語で描画します（空でない、`{n}` の漏れなし）。LSP のクイックフィックスの*タイトル*はまだ中国語です；診断はローカライズ済みです。
+未登録のメッセージは `Error::Message(String)` に残ります。どの言語でもそのまま出力されるため、段階的な移行が**型として**見えます（翻訳済みのふりをしません）。この負債は**文章ではなくゲート**で測ります——そしてその負債は現在ゼロです：
 
 ```text
 python3 scripts/staging_budget.py                # counts + ceiling
-python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs HEAD
+python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs the merge base
 ```
+
+ゲートは AST 走査（`tools/staging-budget`、`syn` 基于）で、行構成・空白・コメントに依存せず、`matches!(e, Error::Message(m) if …)` のような**パターン**が構築と誤判定されることはありません。ゲートはワークスペースの全生産ツリー（`packages/`、`examples/`、`tools/`）にわたって、3 つのファミリーからなる 12 のバケットを数えます：6 つのリテラル構築形（`Error::from(`、`Error::Message(`、フロントエンドの `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`）、値を洗うファネル（実行時値ペイロードを取る `plain` / `new`、および関数参照として渡される `FrontError::plain`、いずれもリポジトリ全体）、そしてカタログ crate 自身の内部にある文字列ステージング形（ステージング文字列を生む `ok_or`/`ok_or_else`/`map_err`、および `Err(format!(…))`）。テストとカタログの下でのみコンパイルされる項目は除外されます。文字列ペイロードを持つカタログ化済み変体（例：`Error::SyntaxError(text)`）はステージングではなく、数えられません。合計が記録された上限を超えるとゲートは失敗します（上限は `tools/staging-budget/src/ceiling.txt` に記録され、下げることしかできません。現在は `0` です）。上限は下がるだけで、それは強制されます：CI（および `just verify`）は `--against-git` でゲートを実行し、**リモート trunk とのマージベース**にある `tools/staging-budget/src/ceiling.txt` を読み、作業ツリーの上限がより高ければ失敗します——したがって、引き上げた上限に紛れ込ませて新しい箇所を追加することはできません。上の裸のコマンドはカウントだけを確認します。全 51 変体は `catalogue_completeness_tests` が固定します——50 のカタログ変体とステージング用の `Message` を構築し、9 言語で描画します（空でない、`{n}` の漏れなし）。LSP のクイックフィックスの*タイトル*はまだ中国語です；診断はローカライズ済みです。
 
 ### エディタ統合（LSP）
 
@@ -937,8 +938,7 @@ WGSL には式本体の関数がなく、本体は `return expr;` でなけれ�
 | 実行時サイズの連立一次方程式 | 実行時レーン（`_matrix`/`_vector` の宣言） | `solve(A,b)` は検査付き（rcond + 残差）。`Result` を返す |
 | 次元の探索 | `himari-eval --groups` | Buckingham Π 群：レイノルズ数を手で導出しなくてよい |
 
-> 中国語が残っているものもあります：生成コードの doc comment と診断文字列です。このレーンのメッセージは現在中国語で書かれているためです
-> （上で引用した doc comment を参照）。これらは一行の文字列リテラルです。
+> 中国語が残っているのは*反対側*です：生成コードの doc comment、proc-macro の `FORMULA-ERROR` 診断、そして LSP のクイックフィックスのタイトル——いずれもエラーカタログの経路ではありません。カタログのステージング負債はゼロであり、上の staging-budget ゲート（12 の構築ファミリー、マージベースに対して強制される上限）がそれをゼロに保っています。
 
 **キャレット付きのエラー**、**関数名の綴り間違いへの提案**（`closest_func`、編集距離 ≤ 2）、
 **不可視文字の拒否**、**深さ/ステップの上限**——これらは飾りではなく、「同僚にこれを使わせる勇気」のための基準です。
