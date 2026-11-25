@@ -3,7 +3,8 @@
 
 Nine languages are a promise that is easy to break silently: a heading gets added to the
 English page and the other eight fall behind, or a table row is dropped in translation. This
-gate compares every locale against the canonical English document and fails on:
+gate compares every locale against the canonical English document (``docs/en/README.md``) and
+fails on:
 
   * a missing locale file, or a locale present on disk but absent from ``docs/lagrange.toml``;
   * a different heading sequence (level and text are compared by level only, since text is
@@ -13,8 +14,10 @@ gate compares every locale against the canonical English document and fails on:
   * a code fence whose content differs from English (code must never be translated);
   * a different number of list items.
 
-It deliberately does not compare prose. Translation quality is a review matter; structure is
-what a machine can hold a line on.
+The root ``README.md`` is a short English entry stub under the docs-site lane: the gate only
+requires that it exists and is non-empty, and does not compare it against the canonical
+document. It deliberately does not compare prose. Translation quality is a review matter;
+structure is what a machine can hold a line on.
 """
 
 import re
@@ -113,13 +116,9 @@ def main() -> int:
         return 1
 
     root = ROOT / "README.md"
-    if root.is_file() and root.read_bytes() != canonical.read_bytes():
-        problems.append(
-            "README.md differs from docs/en/README.md: the root document is the English "
-            "canonical, and the locale copies are compared against docs/en"
-        )
-        for problem in problems:
-            print(f"i18n-gate: {problem}", file=sys.stderr)
+    root_text = root.read_text(encoding="utf-8").strip() if root.is_file() else ""
+    if not root_text:
+        print("i18n-gate: README.md is missing or empty", file=sys.stderr)
         return 1
 
     base = profile(canonical)
@@ -142,7 +141,7 @@ def main() -> int:
             )
         else:
             for index, (mine, theirs) in enumerate(zip(candidate["fences"], base["fences"])):
-                if mine.strip() and mine != theirs:
+                if (mine.strip()) and (mine != theirs):
                     problems.append(f"{name}: code fence #{index + 1} was modified")
                     break
         if candidate["lists"] != base["lists"]:

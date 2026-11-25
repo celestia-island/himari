@@ -9,16 +9,20 @@ en · zh-Hans · zh-Hant · ja · ko · fr · es · ru · ar      (default: en)
 
 | path | content |
 | --- | --- |
-| `README.md` (repository root) | the English document, with the centered language switcher in its header |
-| `docs/en/README.md` | byte-identical copy of the root document; the **canonical source** for every translation |
+| `README.md` (repository root) | a short English **entry stub**: intro, badges, language switcher, and pointers to the docs site and the nine locale documents. It is **not** compared against any locale. |
+| `docs/en/README.md` | the **canonical full document** — every locale is compared against this file |
 | `docs/<tag>/README.md` | the full document in that locale |
+
+`scripts/i18n_check.py` (wired into `just verify`) only requires that the root README exists and
+is non-empty; it does not compare it against `docs/en/README.md`. The root stub and the canonical
+document serve different jobs and are allowed to drift from each other on purpose.
 
 ## Keeping nine languages honest
 
-`scripts/i18n_check.py` (wired into `just verify`) compares every locale against
-`docs/en/README.md` and fails on a missing locale, a locale that is present on disk but absent
-from `lagrange.toml`, a different heading sequence, a different table shape, a different number
-of code fences, a **modified code fence**, or a different number of list items.
+`scripts/i18n_check.py` compares every locale against `docs/en/README.md` and fails on a missing
+locale, a locale that is present on disk but absent from `lagrange.toml`, a different heading
+sequence, a different table shape, a different number of code fences, a **modified code fence**,
+or a different number of list items.
 
 It deliberately does not compare prose: translation quality is a review matter, while structure
 and untranslated code are things a machine can hold a line on. This is the same rule the
@@ -26,8 +30,9 @@ and untranslated code are things a machine can hold a line on. This is the same 
 
 ## What must stay identical across locales
 
-Three kinds of content are **intentionally byte-identical** in every locale, and the
-`untranslated paragraph` warning from `format-markdown` is expected for them:
+Three kinds of content are **intentionally byte-identical** in every locale (the root stub keeps
+the same three rules, and the `untranslated paragraph` warning from `format-markdown` is expected
+for them):
 
 1. **Source comments** — the repository rule is that comments, including HTML comment blocks
    such as the one reserving space for the logo, are written in English.
@@ -42,20 +47,22 @@ recognisable, while the surrounding sentence is in the locale's language.
 
 ## Adding or changing a locale
 
-1. Add the tag to `lagrange.toml` **and** to the switchers in all nine documents (the switcher
-   is part of the header, so the gate sees a heading/table mismatch if you forget one).
+1. Add the tag to `lagrange.toml` **and** to the switchers in the root stub and all nine
+   documents (the switcher is part of the header, so the gate sees a heading/table mismatch if
+   you forget one).
 1. Translate `docs/en/README.md`; do not translate code fences.
 1. Run `python3 scripts/i18n_check.py` and `python3 scripts/fmt_check.py`.
 1. When the English document changes, update all locales in the same change: the gate fails on
-   the heading count first, which is exactly the drift this file is meant to prevent.
+   the heading count first, which is exactly the drift this file is meant to prevent. The root
+   stub does not need to change when the full document changes — it only points at the docs.
 
 ## Logo
 
 The logo lives in `celestia-island.github.io/res/logos/himari.webp` — the org-site repository
-is the single home, and this repository keeps no copy (org rule). The root README already
-references it through the same raw URL every sibling uses:
+is the single home, and this repository keeps no copy (org rule). The root README and every
+locale document reference it through the same raw URL every sibling uses:
 
-```
+```text
 https://raw.githubusercontent.com/celestia-island/celestia-island.github.io/main/res/logos/himari.webp
 ```
 
