@@ -630,26 +630,34 @@ is a variant that carries its own data, which gives three things at once.
   `downcast_ref::<himari::Error>()` after `anyhow::Context`, and the rule that every locale
   renders the same error differently while the code stays identical.
 
-`Error::Message(String)` remains for messages that have not been catalogued yet. It renders
-verbatim in every language, so a staged migration is visible in the type rather than silently
-pretending to be translated. The debt is **measured by a gate**, not by prose:
+`Error::Message(String)` remains for messages that never enter the catalogue; it renders
+verbatim in every language. The staging debt it represents is **measured by a gate**, not by
+prose — and that debt is currently zero:
 
 ```bash
 python3 scripts/staging_budget.py                # counts + ceiling
-python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs HEAD
+python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs the merge base
 ```
 
 It is an AST walk (`tools/staging-budget`, built on `syn`), so the count never depends on line
 layout, whitespace, or comments, and a *pattern* such as `matches!(e, Error::Message(m) if …)` is
-never mistaken for a construction. It counts the string-staging funnel across every production tree in the workspace
-(`packages/`, `examples/`, `tools/`)
-(`Error::from(`, `Error::Message(`, and the front-ends' `FrontError::plain("…")` /
-`plain(format!(…))` / `FrontError::new(…, "…")`), skips items compiled only under test and the
-catalogue itself, and fails if the total exceeds the recorded ceiling (the ceiling lives in `tools/staging-budget/src/ceiling.txt` and may only go down). A
-catalogued variant built with a string payload (e.g. `Error::SyntaxError(text)`) is not staging
-and is not counted.
-The ceiling may only go down, and that is enforced: CI (and `just verify`) run the gate with `--against-git`, which reads `tools/staging-budget/src/ceiling.txt` from `HEAD` and fails if the working-tree ceiling is higher. The bare command above checks only the count. Every catalogue variant is
-pinned by `catalogue_completeness_tests`, which constructs all 38 variants (37 catalogue variants plus the staging `Message`) and renders each in the
+never mistaken for a construction. Twelve buckets in three families are counted across every
+production tree in the workspace (`packages/`, `examples/`, `tools/`): the six literal
+construction shapes (`Error::from(`, `Error::Message(`, and the front-ends' `FrontError::plain("…")` /
+`plain(format!(…))` / `FrontError::new(…, "…")`), the value-laundering funnels (`plain` / `new`
+with a runtime-value payload, and `FrontError::plain` passed as a function reference, both
+repo-wide), and the string-staging shapes (`ok_or`/`ok_or_else`/`map_err` producing staged
+strings, and `Err(format!(…))`) inside the catalogue crate itself. Items compiled only under
+test and the catalogue are skipped; a catalogued variant built with a string payload (e.g.
+`Error::SyntaxError(text)`) is not staging and is not counted. The gate fails if the total
+exceeds the recorded ceiling (the ceiling lives in `tools/staging-budget/src/ceiling.txt` and
+may only go down; it stands at `0`).
+The ceiling may only go down, and that is enforced: CI (and `just verify`) run the gate with
+`--against-git`, which reads `tools/staging-budget/src/ceiling.txt` at the **merge base with
+the remote trunk** and fails if the working-tree ceiling is higher — so new sites cannot be
+snuck in together with a raised ceiling. The bare command above checks only the count. Every
+catalogue variant is
+pinned by `catalogue_completeness_tests`, which constructs all 51 variants (50 catalogue variants plus the staging `Message`) and renders each in the
 nine locales (non-empty, no leaked `{n}` placeholder). The LSP's quick-fix *titles* are also still
 Chinese; its diagnostics are localized.
 
@@ -951,8 +959,10 @@ Also, tint (Chrome/Dawn's implementation) and naga differ on a few edge rules; t
 | runtime-sized linear systems | runtime lane (`_matrix`/`_vector` decls) | `solve(A,b)` is checked (rcond + residual); returns `Result` |
 | dimension exploration | `himari-eval --groups` | Buckingham Π groups: no hand-deriving the Reynolds number |
 
-> Some Chinese text also survives on the other side: doc comments of generated code and diagnostic strings, because this lane's
-> catalogued diagnostics render in the caller's locale; the uncatalogued `Error::Message` staging paths keep their original (mostly Chinese) text and are counted by the staging-budget gate above. These are single-line string literals.
+> What still carries Chinese is the *other* side: doc comments of generated code, the proc-macro's
+> `FORMULA-ERROR` diagnostics, and the LSP's quick-fix titles — none of it is an error-catalogue
+> path. The catalogue's staging debt is zero, and the staging-budget gate above (twelve
+> construction families, ceiling enforced against the merge base) is what keeps it there.
 
 **Errors with carets**, **suggestions for misspelled function names** (`closest_func`, edit distance ≤ 2),
 **rejection of invisible characters**, **depth/step limits** — these are not garnish, they are the bar for "daring to let a colleague use this".
