@@ -5021,10 +5021,18 @@ fn lin_coeffs_multi(e: &Expr, vars: &[String]) -> Result<(Vec<Expr>, Expr), Erro
         E::Mul(x, y) => match (hit(x), hit(y)) {
             (false, false) => (zeros(), e.clone()),
             (true, true) => {
+                // Name the unknowns actually involved, not the operation: the template reads
+                // "is not linear in `{0}`", so `x` or `x, y` belongs in the slot. The old
+                // "the product" made the sentence say "not linear in the product".
+                let involved: Vec<&str> = vars
+                    .iter()
+                    .filter(|v| has_var(e, v))
+                    .map(String::as_str)
+                    .collect();
                 return Err(Error::NonlinearEquation {
-                    name: "the product".into(),
-                    why: "both factors contain the unknown".into(),
-                })
+                    name: involved.join(", "),
+                    why: "both factors contain an unknown".into(),
+                });
             }
             // The pure-coefficient side multiplies into every unknown's coefficient and the
             // constant term
@@ -10370,6 +10378,24 @@ mod tests {
         };
         assert_eq!(name, "no_such_fn");
         assert!(suggestion.is_empty(), "{suggestion:?}");
+    }
+
+    #[test]
+    fn a_nonlinear_product_names_the_unknowns_it_involves() {
+        // The name slot takes unknowns, not operations: "not linear in `x`" / "in `x, y`".
+        let err =
+            solve_system(&[sub(mul(var("x"), var("x")), num(1.0))], &["x".into()]).unwrap_err();
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("not linear in `x`"), "{en}");
+        assert!(!en.contains("the product"), "{en}");
+        // Two different unknowns are both named, in declaration order.
+        let err = solve_system(
+            &[sub(mul(var("x"), var("y")), num(1.0))],
+            &["x".into(), "y".into()],
+        )
+        .unwrap_err();
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("not linear in `x, y`"), "{en}");
     }
 
     #[test]
