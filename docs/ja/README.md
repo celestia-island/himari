@@ -640,7 +640,7 @@ crate 内のあらゆる失敗は 1 つの enum `himari::Error` です。文字�
 そして「同じエラーが 9 言語で異なる描画になり、コードは常に同一」であること。
 
 未登録のメッセージは `Error::Message(String)` に残ります。どの言語でもそのまま出力されるため、
-段階的な移行が**型として**見えます（翻訳済みのふりをしません）。この負債は**文章ではなくゲート**で測ります：`python3 scripts/staging_budget.py` はワークスペースの全生産ツリー（`packages/`、`examples/`、`tools/`）内の未カタログ化プロデューサー（`Error::from(`、`Error::Message(`、フロントエンドの `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`）を、テストとカタログ自身を除いて数え、記録された上限（現在 175）を超えると失敗します。ゲートは AST 走査（`tools/staging-budget`、`syn` 基于）で、行構成・空白・コメントに依存せず、`matches!(e, Error::Message(m) if …)` のような**パターン**が構築と誤判定されることはありません。上限は下がるだけで、それは強制されます：CI は `--against-git` でゲートを実行し、`HEAD` の `tools/staging-budget/src/ceiling.txt` を読み、作業ツリーの上限がより高ければ失敗します。全 38 変体は `catalogue_completeness_tests` が固定します——各変体を構築し 9 言語で描画します（空でない、`{n}` の漏れなし）。LSP のクイックフィックスの*タイトル*はまだ中国語です；診断はローカライズ済みです。
+段階的な移行が**型として**見えます（翻訳済みのふりをしません）。この負債は**文章ではなくゲート**で測ります：`python3 scripts/staging_budget.py` はワークスペースの全生産ツリー（`packages/`、`examples/`、`tools/`）内の未カタログ化プロデューサー（`Error::from(`、`Error::Message(`、フロントエンドの `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`）を、テストとカタログ自身を除いて数え、記録された上限（上限は `tools/staging-budget/src/ceiling.txt` に記録され、下げることしかできません）を超えると失敗します。ゲートは AST 走査（`tools/staging-budget`、`syn` 基于）で、行構成・空白・コメントに依存せず、`matches!(e, Error::Message(m) if …)` のような**パターン**が構築と誤判定されることはありません。上限は下がるだけで、それは強制されます：CI は `--against-git` でゲートを実行し、`HEAD` の `tools/staging-budget/src/ceiling.txt` を読み、作業ツリーの上限がより高ければ失敗します。全 38 変体は `catalogue_completeness_tests` が固定します——各変体を構築し 9 言語で描画します（空でない、`{n}` の漏れなし）。LSP のクイックフィックスの*タイトル*はまだ中国語です；診断はローカライズ済みです。
 
 ```text
 python3 scripts/staging_budget.py                # counts + ceiling

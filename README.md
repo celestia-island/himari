@@ -645,7 +645,7 @@ never mistaken for a construction. It counts the string-staging funnel across ev
 (`packages/`, `examples/`, `tools/`)
 (`Error::from(`, `Error::Message(`, and the front-ends' `FrontError::plain("…")` /
 `plain(format!(…))` / `FrontError::new(…, "…")`), skips items compiled only under test and the
-catalogue itself, and fails if the total exceeds the recorded ceiling (currently 175). A
+catalogue itself, and fails if the total exceeds the recorded ceiling (the ceiling lives in `tools/staging-budget/src/ceiling.txt` and may only go down). A
 catalogued variant built with a string payload (e.g. `Error::SyntaxError(text)`) is not staging
 and is not counted.
 The ceiling may only go down, and that is enforced: CI (and `just verify`) run the gate with `--against-git`, which reads `tools/staging-budget/src/ceiling.txt` from `HEAD` and fails if the working-tree ceiling is higher. The bare command above checks only the count. Every catalogue variant is

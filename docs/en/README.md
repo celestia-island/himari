@@ -645,7 +645,7 @@ never mistaken for a construction. It counts the string-staging funnel across ev
 (`packages/`, `examples/`, `tools/`)
 (`Error::from(`, `Error::Message(`, and the front-ends' `FrontError::plain("…")` /
 `plain(format!(…))` / `FrontError::new(…, "…")`), skips items compiled only under test and the
-catalogue itself, and fails if the total exceeds the recorded ceiling (currently 175). A
+catalogue itself, and fails if the total exceeds the recorded ceiling (the ceiling lives in `tools/staging-budget/src/ceiling.txt` and may only go down). A
 catalogued variant built with a string payload (e.g. `Error::SyntaxError(text)`) is not staging
 and is not counted.
 The ceiling may only go down, and that is enforced: CI (and `just verify`) run the gate with `--against-git`, which reads `tools/staging-budget/src/ceiling.txt` from `HEAD` and fails if the working-tree ceiling is higher. The bare command above checks only the count. Every catalogue variant is
@@ -959,8 +959,9 @@ Also, tint (Chrome/Dawn's implementation) and naga differ on a few edge rules; t
 
 ## Status
 
-Iterating on the `dev` branch (local repository, not pushed to a remote). The crates.io / docs.rs badges are reserved entry points;
-**nothing has been published yet**; `publish = false` on the formal crates is the manual-review lock, and examples and fixtures stay unpublishable too.
+The repository lives on the org (`celestia-island/himari`, single squashed master). The crates.io /
+docs.rs badges light up on first publish; `publish = false` on the formal crates is the manual-review
+lock, and examples and fixtures stay unpublishable too.
 Internal dependencies already carry `version = "0.1"` with local paths, and once the review is lifted they must be published in topological order:
 `himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
 The `himari-check` tooling release is decided separately. `himari-standards` and `himari-lean` are new `publish = false` crates in the workspace;
