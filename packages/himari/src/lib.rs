@@ -3029,8 +3029,8 @@ pub fn nondiffable(e: &Expr) -> Vec<String> {
                 }
             }
             Expr::Deriv(..) | Expr::Sum { .. } | Expr::Integral { .. } | Expr::Indexed { .. } => {
-                if !out.contains(&"算子/求和/积分".to_string()) {
-                    out.push("算子/求和/积分".to_string());
+                if !out.contains(&"operators/sums/integrals".to_string()) {
+                    out.push("operators/sums/integrals".to_string());
                 }
             }
             Expr::Mat(rows) => {
@@ -4022,7 +4022,7 @@ fn emit_block_fx(root: &Expr, fx: Fx) -> String {
     // The no_std lane is scalars only: matrix-valued expressions (`vec![…]` needs alloc) are
     // rejected as a whole block
     if fx.is_libm() && is_matrix_value(root) {
-        return "{\n        compile_error!(\"no_std 车道不做矩阵值公式（vec! 要 alloc）：请在 CPU 侧装配，或走 std 车道\")\n    }"
+        return "{\n        compile_error!(\"the no_std lane does not do matrix-valued formulas (vec! needs alloc): assemble them on the CPU side, or use the std lane\")\n    }"
             .to_string();
     }
     let mut counts: HashMap<String, usize> = HashMap::new();
@@ -4243,7 +4243,7 @@ impl CEmit {
             Expr::Call(name, args) => {
                 if matches!(name.as_str(), "__quad_root_1" | "__quad_root_2") {
                     if args.len() != 3 {
-                        return "compile_error!(\"内部二次根算子需要三个系数\")".to_string();
+                        return "compile_error!(\"the internal quadratic-root operator needs three coefficients\")".to_string();
                     }
                     let a = self.node(&args[0], false);
                     let b = self.node(&args[1], false);
@@ -4263,7 +4263,7 @@ impl CEmit {
                     return format!("{helper}({a}, {b}, {c}, {first})");
                 }
                 let Some(arg0) = args.first() else {
-                    return "compile_error!(\"函数调用缺参数\")".to_string();
+                    return "compile_error!(\"the function call is missing its argument\")".to_string();
                 };
                 // Expandable operators: the same strategy as the real lane — expand into an
                 // ordinary expression on the IR first,
@@ -4286,7 +4286,7 @@ impl CEmit {
                 ) {
                     return match expand_call(e) {
                         Some(x) => self.node(&x, false),
-                        None => "compile_error!(\"det/trace/adjoint/inv/solve/roots/dot/norm 需要具体矩阵字面量\")".to_string(),
+                        None => "compile_error!(\"det/trace/adjoint/inv/solve/roots/dot/norm need a concrete matrix literal\")".to_string(),
                     };
                 }
                 let helper = match name.as_str() {
@@ -4307,7 +4307,7 @@ impl CEmit {
                     // Unregistered function name: blow up at compile time, never leave a runtime
                     // surprise
                     _ => {
-                        return "compile_error!(\"复数车道不支持该函数（exp/ln/sqrt/sin/cos/tan/sinh/cosh/tanh/abs/arg/conj/re/im）\")".to_string()
+                        return "compile_error!(\"the complex lane does not support this function (exp/ln/sqrt/sin/cos/tan/sinh/cosh/tanh/abs/arg/conj/re/im)\")".to_string()
                     }
                 };
                 self.call1(helper, arg0)
@@ -4342,10 +4342,10 @@ impl CEmit {
                         return acc;
                     }
                 }
-                "compile_error!(\"非常量求和界限请走 .formula 文件车道\")".to_string()
+                "compile_error!(\"a non-constant sum bound must go through the .formula file lane\")".to_string()
             }
             Expr::Integral { .. } => {
-                "compile_error!(\"定积分请走 .formula 文件车道（数值积分是运行期循环）\")"
+                "compile_error!(\"definite integrals must go through the .formula file lane (numeric integration is a runtime loop)\")"
                     .to_string()
             }
             // Complex matrix: elements go through the same complex emitter and are wrapped as
@@ -4383,14 +4383,14 @@ impl CEmit {
                     }
                     format!("vec![{}]", parts.join(", "))
                 }
-                _ => "compile_error!(\"复数车道的转置需要形状编译期已知的矩阵字面量\")".to_string(),
+                _ => "compile_error!(\"a transpose in the complex lane needs a matrix literal whose shape is known at compile time\")".to_string(),
             },
             Expr::MatPattern(_) => {
-                "compile_error!(\"复数车道不做模式矩阵（先 `recognize_pattern` 落到具体形状）\")"
+                "compile_error!(\"the complex lane does not take pattern matrices (call `recognize_pattern` first to get a concrete shape)\")"
                     .to_string()
             }
             Expr::Deriv(..) | Expr::Grad(_) | Expr::Laplacian(_) | Expr::Indexed { .. } => {
-                "compile_error!(\"符号算子/索引符号请走 .formula 文件车道\")".to_string()
+                "compile_error!(\"symbolic operators and indexed symbols must go through the .formula file lane\")".to_string()
             }
         }
     }
@@ -6274,7 +6274,7 @@ fn emit_uncached(
                 matches!(a.as_ref(), Expr::Mat(_) | Expr::MatPattern(_)) || is_matrix_value(a);
             if base_is_matrix {
                 return (
-                    "compile_error!(\"矩阵幂请写成显式矩阵乘（生成器支持 0–8 次非负整数幂）\")"
+                    "compile_error!(\"write a matrix power as an explicit matrix product (the generator supports non-negative integer powers up to 8)\")"
                         .to_string(),
                     9,
                 );
@@ -6286,7 +6286,7 @@ fn emit_uncached(
             if let (Expr::Num(bv), Expr::Num(ev)) = (a.as_ref(), b.as_ref()) {
                 if *bv < 0.0 && math::fract(*ev) != 0.0 {
                     return (
-                        "compile_error!(\"负数的非整数次幂在实数车道无值（值层为复数）：请改写公式或走复数车道\")"
+                        "compile_error!(\"a non-integer power of a negative number has no real value (the value layer is complex): rewrite the formula or use the complex lane\")"
                             .to_string(),
                         9,
                     );
@@ -6332,14 +6332,14 @@ fn emit_uncached(
             if matches!(n.as_str(), "__quad_root_1" | "__quad_root_2") {
                 if args.len() != 3 {
                     return (
-                        "compile_error!(\"内部二次根算子需要三个系数\")".to_string(),
+                        "compile_error!(\"the internal quadratic-root operator needs three coefficients\")".to_string(),
                         9,
                     );
                 }
                 if let [Expr::Num(a), Expr::Num(b), Expr::Num(c)] = args.as_slice() {
                     if b * b - 4.0 * a * c < 0.0 {
                         return (
-                            "compile_error!(\"二次方程的判别式为负：实数车道无实根，请走复数车道\")"
+                            "compile_error!(\"the quadratic discriminant is negative: the real lane has no real roots, use the complex lane\")"
                                 .to_string(),
                             9,
                         );
@@ -6371,13 +6371,13 @@ fn emit_uncached(
             }
             let Some(arg0) = args.first() else {
                 return (
-                    "compile_error!(\"函数调用缺参数：本方言的函数都是一元的\")".to_string(),
+                    "compile_error!(\"the function call is missing its argument: every function in this dialect is unary\")".to_string(),
                     9,
                 );
             };
             if n == "sqrt" && matches!(arg0, Expr::Num(v) if *v < 0.0) {
                 return (
-                    "compile_error!(\"负数开平方在实数车道无值（值层为复数）：请改写公式或走复数车道\")"
+                    "compile_error!(\"the square root of a negative number has no real value (the value layer is complex): rewrite the formula or use the complex lane\")"
                         .to_string(),
                     9,
                 );
@@ -6425,7 +6425,7 @@ fn emit_uncached(
                     // parentheses and the division would slip into the last term
                     Some(x) => emit_node(&x, false, counts, names, out, counter, fx),
                     None => (
-                        "compile_error!(\"det/trace/adjoint/inv/norm/dot 需要具体矩阵字面量（det 只到 3 阶）\")"
+                        "compile_error!(\"det/trace/adjoint/inv/norm/dot need a concrete matrix literal (det only goes up to order 3)\")"
                             .to_string(),
                         9,
                     ),
@@ -6439,7 +6439,7 @@ fn emit_uncached(
                 // `arg` has no meaningful value over the reals (0 or π depending on the sign); do
                 // not guess
                 "arg" => (
-                    "compile_error!(\"arg 只对复数有定义：实数公式请显式写出符号判断\")"
+                    "compile_error!(\"arg is only defined for complex values: write the sign test out explicitly in a real formula\")"
                         .to_string(),
                     9,
                 ),
@@ -6448,7 +6448,7 @@ fn emit_uncached(
                 // that kind of error points at the generated code, making debugging absurdly
                 // expensive)
                 _ => (
-                    "compile_error!(\"未知函数：实数车道支持 exp/ln/log/sin/cos/tan/sinh/cosh/tanh/sqrt/abs/re/im/conj\")"
+                    "compile_error!(\"unknown function: the real lane supports exp/ln/log/sin/cos/tan/sinh/cosh/tanh/sqrt/abs/re/im/conj\")"
                         .to_string(),
                     9,
                 ),
@@ -6458,7 +6458,7 @@ fn emit_uncached(
         // Symbolic operators (∂/∇/∇²) and indexed symbols: not expressible in inline emission, so
         // point explicitly to the file lane
         Expr::Deriv(..) | Expr::Grad(_) | Expr::Laplacian(_) | Expr::Indexed { .. } => (
-            "compile_error!(\"符号算子/索引符号请走 .formula 文件车道（生成器需要上下文）\")"
+            "compile_error!(\"symbolic operators and indexed symbols must go through the .formula file lane (the generator needs the context)\")"
                 .to_string(),
             9,
         ),
@@ -6489,21 +6489,21 @@ fn emit_uncached(
                 }
             }
             (
-                "compile_error!(\"非常量求和界限请走 .formula 文件车道\")".to_string(),
+                "compile_error!(\"a non-constant sum bound must go through the .formula file lane\")".to_string(),
                 9,
             )
         }
         // ∫: numerical integration is not inlined (it is a runtime loop), so point to the file
         // lane
         Expr::Integral { .. } => (
-            "compile_error!(\"定积分请走 .formula 文件车道（数值积分是运行期循环）\")".to_string(),
+            "compile_error!(\"definite integrals must go through the .formula file lane (numeric integration is a runtime loop)\")".to_string(),
             9,
         ),
         // A pattern matrix cannot be emitted directly as a value expression: it must first go
         // through the recognize_pattern →
         // emit_matrix_ctor lane; reaching here means an upper layer skipped the triage.
         Expr::MatPattern(_) => (
-            "compile_error!(\"模式矩阵必须经生成器车道，不能内联发射\")".to_string(),
+            "compile_error!(\"a pattern matrix must go through the generator lane; it cannot be emitted inline\")".to_string(),
             9,
         ),
         // Transpose: a concrete literal can be folded into a literal (see flatten_matrix above);
@@ -6516,7 +6516,7 @@ fn emit_uncached(
             }
             let _ = a;
             (
-                "compile_error!(\"转置的被转置项必须是具体矩阵字面量（符号矩阵的形状编译期未知）\")"
+                "compile_error!(\"the transpose operand must be a concrete matrix literal (the shape of a symbolic matrix is unknown at compile time)\")"
                     .to_string(),
                 9,
             )
@@ -6864,15 +6864,16 @@ pub fn recognize_pattern(p: &MatPattern) -> Result<MatrixKind, Error> {
     }
 
     Err(Error::InvalidInput(format!(
-        "模式矩阵（{m}×{n}）不匹配任何内置形状。支持：\n  \
+        "the pattern matrix ({m}×{n}) does not match any built-in shape. Supported:\n  \
          identity(n)                  [1 ⋯ 0; ⋮ 1 ⋮; 0 ⋯ 1]\n  \
-         diag(d, n) / diag_v(d[i], n) 对角同一表达式 / 对角是索引序列\n  \
-         tridiag(a,b,c,n) / tridiag_v(...)  三对角（角落必须是省略号）\n  \
-         bidiag_u(b,c,n) / bidiag_l(a,b,n)  上/下双对角\n  \
-         blockdiag2(p,q,n,m)          分块对角 diag(p·I₂, q·I₂)\n  \
-         banded(v,k,n)                对称带状（m≥2k+1 才无歧义）\n\
-         注：不带省略号的矩阵草图本来就是**具体矩阵**，会被发射成字面量\n\
-         （比生成器更优：常量可折叠、无分配循环）—— 想走生成器车道就写出省略号。"
+         diag(d, n) / diag_v(d[i], n) one expression on the diagonal / an index sequence\n  \
+         tridiag(a,b,c,n) / tridiag_v(...)  tridiagonal (the corners must be ellipses)\n  \
+         bidiag_u(b,c,n) / bidiag_l(a,b,n)  upper/lower bidiagonal\n  \
+         blockdiag2(p,q,n,m)          block diagonal diag(p·I₂, q·I₂)\n  \
+         banded(v,k,n)                symmetric banded (unambiguous only when m≥2k+1)\n\
+         Note: a sketch without ellipses IS a **concrete matrix** and is emitted as a literal\n\
+         (which beats the generator: constants fold, no allocation loop) — write the ellipses if\
+         you want the generator lane."
     )))
 }
 
@@ -6882,54 +6883,54 @@ pub fn recognize_pattern(p: &MatPattern) -> Result<MatrixKind, Error> {
 pub fn emit_matrix_ctor(fname: &str, kind: &MatrixKind) -> String {
     match kind {
         MatrixKind::Identity => format!(
-            "/// 单位阵 I_n（由模式矩阵生成）\n#[allow(non_snake_case)]\npub fn {fname}(n: usize) -> Vec<Vec<f64>> {{\n    vec![vec![0.0; n]; n]\n        .into_iter()\n        .enumerate()\n        .map(|(i, mut row)| {{ row[i] = 1.0; row }})\n        .collect()\n}}\n"
+            "/// Identity matrix I_n (generated from a pattern matrix)\n#[allow(non_snake_case)]\npub fn {fname}(n: usize) -> Vec<Vec<f64>> {{\n    vec![vec![0.0; n]; n]\n        .into_iter()\n        .enumerate()\n        .map(|(i, mut row)| {{ row[i] = 1.0; row }})\n        .collect()\n}}\n"
         ),
         MatrixKind::Diag(d) => {
             let body = emit_block(d);
             let params = sig_of(core::slice::from_ref(d));
             format!(
-                "/// 对角阵 diag(d)·I_n（由模式矩阵生成；d 为标量广播）\n#[allow(non_snake_case)]\npub fn {fname}({params}, n: usize) -> Vec<Vec<f64>> {{\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{ m[__row][__row] = {body}; }}\n    m\n}}\n"
+                "/// Diagonal matrix diag(d)·I_n (generated from a pattern matrix; d is broadcast as a scalar)\n#[allow(non_snake_case)]\npub fn {fname}({params}, n: usize) -> Vec<Vec<f64>> {{\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{ m[__row][__row] = {body}; }}\n    m\n}}\n"
             )
         }
         MatrixKind::DiagVec(name) => {
             let id = rust_ident(name);
             format!(
-                "/// 对角阵（由索引模式矩阵生成；d 是**向量**，长度须 ≥ n）\n#[allow(non_snake_case)]\npub fn {fname}({id}: &[f64], n: usize) -> Vec<Vec<f64>> {{\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = {id}[__row];\n    }}\n    m\n}}\n"
+                "/// Diagonal matrix (generated from an indexed pattern matrix; d is a **vector** whose length must be ≥ n)\n#[allow(non_snake_case)]\npub fn {fname}({id}: &[f64], n: usize) -> Vec<Vec<f64>> {{\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = {id}[__row];\n    }}\n    m\n}}\n"
             )
         }
         MatrixKind::TridiagVec { a, c, .. } => {
             let ba = emit_block(a);
             let bc = emit_block(c);
             format!(
-                "/// 三对角阵（由索引模式矩阵生成；b 是**向量**，长度须 ≥ n）\n#[allow(non_snake_case)]\npub fn {fname}(a: f64, b: &[f64], c: f64, n: usize) -> Vec<Vec<f64>> {{\n    let av = {ba};\n    let cv = {bc};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = b[__row];\n        let __next = __row + 1;\n        if __next < n {{\n            m[__row][__next] = cv;\n            m[__next][__row] = av;\n        }}\n    }}\n    m\n}}\n"
+                "/// Tridiagonal matrix (generated from an indexed pattern matrix; b is a **vector** whose length must be ≥ n)\n#[allow(non_snake_case)]\npub fn {fname}(a: f64, b: &[f64], c: f64, n: usize) -> Vec<Vec<f64>> {{\n    let av = {ba};\n    let cv = {bc};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = b[__row];\n        let __next = __row + 1;\n        if __next < n {{\n            m[__row][__next] = cv;\n            m[__next][__row] = av;\n        }}\n    }}\n    m\n}}\n"
             )
         }
         MatrixKind::BlockDiag2 { p, q } => {
             let bp = emit_block(p);
             let bq = emit_block(q);
             format!(
-                "/// 分块对角阵 diag(P·I₂, Q·I₂)（由模式矩阵生成）\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(p: f64, q: f64, n: usize) -> Vec<Vec<f64>> {{\n    // n 是**总**维数；两块各占一半（奇数时右下块多一）\n    let pv = {bp};\n    let qv = {bq};\n    let half = n / 2;\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..half {{\n        m[__row][__row] = pv;\n        m[n - 1 - __row][n - 1 - __row] = qv;\n    }}\n    if n % 2 == 1 {{\n        m[half][half] = qv;\n    }}\n    m\n}}\n"
+                "/// Block diagonal matrix diag(P·I₂, Q·I₂) (generated from a pattern matrix)\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(p: f64, q: f64, n: usize) -> Vec<Vec<f64>> {{\n    // n is the **total** dimension; each block takes half (the lower-right block takes the odd one)\n    let pv = {bp};\n    let qv = {bq};\n    let half = n / 2;\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..half {{\n        m[__row][__row] = pv;\n        m[n - 1 - __row][n - 1 - __row] = qv;\n    }}\n    if n % 2 == 1 {{\n        m[half][half] = qv;\n    }}\n    m\n}}\n"
             )
         }
         MatrixKind::Banded { v, half_band } => {
             let bv = emit_block(v);
             let k = *half_band;
             format!(
-                "/// 对称带状阵（半带宽 {k}：主对角与 {k} 条副对角同值）\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(v: f64, n: usize) -> Vec<Vec<f64>> {{\n    let vv = {bv};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        let __hi = (__row + {k}).min(n - 1);\n        for __col in __row..=__hi {{\n            m[__row][__col] = vv;\n            m[__col][__row] = vv;\n        }}\n    }}\n    m\n}}\n"
+                "/// Symmetric banded matrix (half-bandwidth {k}: the main diagonal and {k} off-diagonals share one value)\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(v: f64, n: usize) -> Vec<Vec<f64>> {{\n    let vv = {bv};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        let __hi = (__row + {k}).min(n - 1);\n        for __col in __row..=__hi {{\n            m[__row][__col] = vv;\n            m[__col][__row] = vv;\n        }}\n    }}\n    m\n}}\n"
             )
         }
         MatrixKind::BidiagUpper { b, c } => {
             let bb = emit_block(b);
             let bc = emit_block(c);
             format!(
-                "/// 上双对角阵（主对角 b + 上次对角 c）\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(b: f64, c: f64, n: usize) -> Vec<Vec<f64>> {{\n    let bv = {bb};\n    let cv = {bc};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = bv;\n        let __next = __row + 1;\n        if __next < n {{\n            m[__row][__next] = cv;\n        }}\n    }}\n    m\n}}\n"
+                "/// Upper bidiagonal matrix (main diagonal b plus the superdiagonal c)\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(b: f64, c: f64, n: usize) -> Vec<Vec<f64>> {{\n    let bv = {bb};\n    let cv = {bc};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = bv;\n        let __next = __row + 1;\n        if __next < n {{\n            m[__row][__next] = cv;\n        }}\n    }}\n    m\n}}\n"
             )
         }
         MatrixKind::BidiagLower { a, b } => {
             let ba = emit_block(a);
             let bb = emit_block(b);
             format!(
-                "/// 下双对角阵（主对角 b + 下次对角 a）\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(a: f64, b: f64, n: usize) -> Vec<Vec<f64>> {{\n    let av = {ba};\n    let bv = {bb};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = bv;\n        let __next = __row + 1;\n        if __next < n {{\n            m[__next][__row] = av;\n        }}\n    }}\n    m\n}}\n"
+                "/// Lower bidiagonal matrix (main diagonal b plus the subdiagonal a)\n#[allow(non_snake_case, clippy::needless_range_loop)]\npub fn {fname}(a: f64, b: f64, n: usize) -> Vec<Vec<f64>> {{\n    let av = {ba};\n    let bv = {bb};\n    let mut m = vec![vec![0.0; n]; n];\n    for __row in 0..n {{\n        m[__row][__row] = bv;\n        let __next = __row + 1;\n        if __next < n {{\n            m[__next][__row] = av;\n        }}\n    }}\n    m\n}}\n"
             )
         }
         MatrixKind::Tridiag { a, b, c } => {
@@ -6938,7 +6939,7 @@ pub fn emit_matrix_ctor(fname: &str, kind: &MatrixKind) -> String {
             let bc = emit_block(c);
             let params = sig_of(&[a.clone(), b.clone(), c.clone()]);
             format!(
-                "/// 三对角阵 tridiag(a,b,c)_n（由模式矩阵生成）\n#[allow(non_snake_case, clippy::too_many_arguments)]\npub fn {fname}({params}, n: usize) -> Vec<Vec<f64>> {{\n    let av = {ba};\n    let bv = {bb};\n    let cv = {bc};\n    let mut m = vec![vec![0.0; n]; n];\n    #[allow(clippy::needless_range_loop)]\n    for __row in 0..n {{\n        m[__row][__row] = bv;\n        let __next = __row + 1;\n        if __next < n {{\n            m[__row][__next] = cv;\n            m[__next][__row] = av;\n        }}\n    }}\n    m\n}}\n"
+                "/// Tridiagonal matrix tridiag(a,b,c)_n (generated from a pattern matrix)\n#[allow(non_snake_case, clippy::too_many_arguments)]\npub fn {fname}({params}, n: usize) -> Vec<Vec<f64>> {{\n    let av = {ba};\n    let bv = {bb};\n    let cv = {bc};\n    let mut m = vec![vec![0.0; n]; n];\n    #[allow(clippy::needless_range_loop)]\n    for __row in 0..n {{\n        m[__row][__row] = bv;\n        let __next = __row + 1;\n        if __next < n {{\n            m[__row][__next] = cv;\n            m[__next][__row] = av;\n        }}\n    }}\n    m\n}}\n"
             )
         }
     }

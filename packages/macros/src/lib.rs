@@ -93,8 +93,8 @@ pub fn formula_file(input: TokenStream) -> TokenStream {
         .find(|d| raw.ends_with(&format!("\"{d}\"")) || raw.ends_with(&format!(" {d}")))
     else {
         return err_ts(
-            "FORMULA-ERROR: formula_file! 必须指定方言 —— 写 `formula_file!(\"f.formula\", latex)` 或 `formula_file!(\"f.formula\", matlab)`。\
-             文件内容无法从宏名推断，本宏不猜。",
+            "FORMULA-ERROR: formula_file! needs an explicit dialect — write `formula_file!(\"f.formula\", latex)` or `formula_file!(\"f.formula\", matlab)`. \
+             The file's contents cannot be inferred from the macro name, and this macro does not guess.",
         );
     };
     let dialect = if *d == "latex" {
@@ -120,7 +120,7 @@ pub fn formula_file(input: TokenStream) -> TokenStream {
             emit(&src, dialect, &path)
         }
         Err(e) => err_ts(&format!(
-            "FORMULA-ERROR: 读不到公式文件 {}: {e}",
+            "FORMULA-ERROR: cannot read the formula file {}: {e}",
             full.display()
         )),
     }
@@ -202,7 +202,7 @@ fn emit(src: &str, dialect: Dialect, origin: &str) -> TokenStream {
         Ok(code) => match TokenStream::from_str(&code) {
             Ok(ts) => ts,
             Err(e) => err_ts(&format!(
-                "FORMULA-ERROR: 生成的代码不是合法 token 流（{e}）：{code}"
+                "FORMULA-ERROR: the generated code is not a valid token stream ({e}): {code}"
             )),
         },
         Err(e) => {
