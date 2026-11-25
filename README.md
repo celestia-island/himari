@@ -60,7 +60,6 @@ catalogue live in [the documentation](https://celestia-island.github.io/himari/)
 ## Quickstart
 
 ```bash
-# once the first version is on crates.io (see Status in the docs):
 cargo add himari himari-macros
 ```
 
