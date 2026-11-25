@@ -24,6 +24,7 @@ exclude = ["packages/check/fixtures/probe", "packages/vscode"]
 
 [workspace.package]
 edition = "2021"
+version = "0.1.0"
 rust-version = "1.90"
 # SySL 是非标准许可（crates.io 的 SPDX 表里没有它），按 cargo 的指引对非标准许可
 # **只用 license-file**、不写 `license` 字符串 —— 写了 `LicenseRef-SysL-1.0` 反而会让

@@ -1,6 +1,6 @@
 [package]
 name = "himari-check"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "CLI and language server for himari: format, evaluate, find roots, diagnose, edit .formula files."
 rust-version.workspace = true

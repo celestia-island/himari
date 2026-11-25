@@ -1,6 +1,6 @@
 [package]
 name = "himari-staging-budget"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 publish = false
 description = "Counts uncatalogued error producers in the workspace by AST (gate: the total may only go down)."

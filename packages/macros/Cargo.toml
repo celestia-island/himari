@@ -1,6 +1,6 @@
 [package]
 name = "himari-macros"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Inline `formula!` macro lane for himari: short dimensioned expressions without a build step."
 rust-version.workspace = true

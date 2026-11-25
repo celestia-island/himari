@@ -1,6 +1,6 @@
 [package]
 name = "himari-buildhelper"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "build.rs helper for himari: compiles a directory of .formula files into checked-in Rust."
 rust-version.workspace = true

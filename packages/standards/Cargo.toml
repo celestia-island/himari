@@ -1,6 +1,6 @@
 [package]
 name = "himari-standards"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Typed calculators for published engineering standards (Brinell hardness, tensile properties, standard atmosphere, decimal rounding) with explicit provenance."
 rust-version.workspace = true
