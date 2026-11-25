@@ -1622,6 +1622,27 @@ mod catalogue_completeness_tests {
             cx.render(Locale::En),
             "the scalar evaluation is complex (1+2j): use eval_value for the complex value"
         );
+        // The four-argument order matters: from, from_dim, to, to_dim — the template reads
+        // "cannot convert `{0}` ({1}) to `{2}` ({3})".
+        let units = Error::IncompatibleUnits {
+            from: "nF".into(),
+            to: "V".into(),
+            from_dim: "F".into(),
+            to_dim: "V".into(),
+        };
+        assert_eq!(
+            units.arguments(),
+            vec![
+                "nF".to_string(),
+                "F".to_string(),
+                "V".to_string(),
+                "V".to_string()
+            ]
+        );
+        assert_eq!(
+            units.render(Locale::En),
+            "cannot convert `nF` (F) to `V` (V): the dimensions differ"
+        );
         let op = Error::OperatorDimensionMismatch {
             operator: "+".into(),
             left: "m".into(),
