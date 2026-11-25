@@ -105,17 +105,9 @@ impl FrontError {
 
     /// Renders this error in `language`. Uncatalogued (`Raw`) errors keep their text.
     pub fn render_in(&self, language: i18n::Locale) -> String {
-        // A composed variant re-renders its inner error at the TARGET locale: the stored `args`
-        // were computed in English at construction, but the inner `Box<Error>` keeps the full
-        // variant, so frame and inner message translate together instead of the inner freezing
-        // in English.
-        if let i18n::Error::InEquation { index, error } = &*self.code {
-            let inner = error.render(language);
-            let owned = [index.to_string(), inner];
-            let refs: Vec<&str> = owned.iter().map(String::as_str).collect();
-            return i18n::render(&self.code, &refs, language);
-        }
-        // Uncatalogued (`Message`) errors pass through verbatim inside `render`.
+        // Composed variants are handled inside `i18n::render` itself (it recomputes the inner
+        // error at the target locale instead of using stored arguments), so this method stays a
+        // single delegation: one home for the composition rule, not two.
         let borrowed: Vec<&str> = self.args.iter().map(|a| a.as_str()).collect();
         i18n::render(&self.code, &borrowed, language)
     }
