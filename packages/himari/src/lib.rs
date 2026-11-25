@@ -225,7 +225,9 @@ impl Dim {
     /// fake dimension.
     pub fn scale_ratio(self, p: i32, q: i32) -> Result<Dim, Error> {
         if q == 0 {
-            return Err(Error::from("单位指数分母为零".to_string()));
+            return Err(Error::ExponentZeroDenominator {
+                exponent: format!("{p}/{q}"),
+            });
         }
         let mut r = [0i16; 7];
         for (out, v) in r.iter_mut().zip(self.0) {
@@ -233,9 +235,7 @@ impl Dim {
             // to panic outright in debug and silently wrap into a **wrong dimension** in release).
             let prod = v as i64 * p as i64;
             if prod % q as i64 != 0 {
-                return Err(Error::from(format!(
-                    "单位指数 {p}/{q} 无法整除当前量纲（本量纲代数只支持整格与半格）"
-                )));
+                return Err(Error::ExponentNotHalfInteger(format!("{p}/{q}")));
             }
             let scaled = prod / q as i64;
             *out = i16::try_from(scaled).map_err(|_| {
@@ -431,12 +431,16 @@ fn parse_ratio(s: &str) -> Result<(i32, i32), Error> {
         .trim()
         .parse()
         .map_err(|_| format!("坏的单位指数 `{}`", s.trim()))?;
-    let d: i32 = d
-        .trim()
-        .parse()
-        .map_err(|_| format!("坏的单位指数分母 `{}`", s.trim()))?;
+    let d: i32 = d.trim().parse().map_err(|_| {
+        Error::MalformedUnit(
+            s.trim().to_string(),
+            "exponent denominator is not an integer".into(),
+        )
+    })?;
     if d == 0 {
-        return Err(Error::from(format!("单位指数分母为零 `{}`", s.trim())));
+        return Err(Error::ExponentZeroDenominator {
+            exponent: s.trim().to_string(),
+        });
     }
     Ok((n, d))
 }
@@ -451,14 +455,20 @@ pub fn parse_unit(src: &str) -> Result<Dim, Error> {
 pub fn parse_unit_spec(src: &str) -> Result<UnitSpec, Error> {
     let src = src.trim();
     if src.is_empty() {
-        return Err(Error::from("空单位串".to_string()));
+        return Err(Error::MalformedUnit(
+            String::new(),
+            "empty unit string".into(),
+        ));
     }
     // Only ASCII plus two micro signs are allowed (U+00B5 / U+03BC)
     if let Some(c) = src
         .chars()
         .find(|c| !c.is_ascii() && !matches!(*c, '\u{00b5}' | '\u{03bc}' | '\u{03a9}' | '\u{00b7}'))
     {
-        return Err(Error::from(format!("单位里有非法字符 `{c}`：`{src}`")));
+        return Err(Error::MalformedUnit(
+            src.to_string(),
+            format!("invalid character `{c}`"),
+        ));
     }
     let mut acc = Dim::ZERO;
     let mut scale = 1.0f64;
@@ -466,7 +476,10 @@ pub fn parse_unit_spec(src: &str) -> Result<UnitSpec, Error> {
     let mut atom = String::new();
     let flush = |acc: &mut Dim, scale: &mut f64, op: char, atom: &mut String| {
         if atom.is_empty() {
-            return Err(Error::from("单位串里有空分量".to_string()));
+            return Err(Error::MalformedUnit(
+                src.to_string(),
+                "empty component".into(),
+            ));
         }
         // Exponents accept rationals p/q: `s^(-1/2)` (the textbook unit of the Warburg
         // coefficient).
@@ -707,7 +720,9 @@ fn rref_aug(mut a: Vec<Vec<Rat>>) -> (Vec<Vec<Rat>>, Vec<usize>, bool) {
 /// Π theorem itself, used as an assertion in tests).
 pub fn dimensionless_groups(vars: &[(String, Dim)]) -> Result<Vec<Vec<f64>>, Error> {
     if vars.is_empty() {
-        return Err(Error::from("无量纲群需要至少一个变量"));
+        return Err(Error::InvalidInput(
+            "dimensionless groups need at least one variable".into(),
+        ));
     }
     let n = vars.len();
     // 7×n exponent matrix + a redundant all-zero augmented column (to reuse the same rref)
@@ -756,7 +771,10 @@ pub fn dim_solve(vars: &[(String, Dim)], target: Dim) -> Result<Vec<f64>, Error>
         return if target.is_zero() {
             Ok(vec![])
         } else {
-            Err(Error::from("没有变量可以凑出该量纲"))
+            Err(Error::InvalidInput(format!(
+                "no variables to form the dimension {}",
+                target.display()
+            )))
         };
     }
     let n = vars.len();
@@ -770,12 +788,11 @@ pub fn dim_solve(vars: &[(String, Dim)], target: Dim) -> Result<Vec<f64>, Error>
         .collect();
     let (red, pivots, consistent) = rref_aug(a);
     if !consistent {
-        return Err(Error::from(format!(
-            "这些变量凑不出量纲 {}（需要 {} 维基本量，变量只张出 {} 维）",
-            target.display(),
-            t.iter().filter(|r| !r.is_zero()).count(),
-            pivots.len()
-        )));
+        return Err(Error::TargetDimensionUnreachable {
+            target: target.display().to_string(),
+            needed: t.iter().filter(|r| !r.is_zero()).count(),
+            spanned: pivots.len(),
+        });
     }
     let mut x = vec![0.0f64; n];
     for (i, &pc) in pivots.iter().enumerate() {
@@ -1241,10 +1258,9 @@ impl FormulaSet {
     pub fn single(&self) -> Result<&Expr, Error> {
         match self.items.as_slice() {
             [one] => Ok(&one.expr),
-            _ => Err(Error::from(format!(
-                "期望单条公式，得到 {} 条",
-                self.items.len()
-            ))),
+            _ => Err(Error::ExpectedSingleFormula {
+                got: self.items.len(),
+            }),
         }
     }
 
@@ -1423,14 +1439,11 @@ pub fn federate_inline(set: &FormulaSet) -> Result<Vec<FormulaItem>, Error> {
 
 pub fn eval(e: &Expr, env: &HashMap<String, f64>) -> Result<f64, Error> {
     let v = eval_value(e, env)?;
-    let c = v
-        .as_scalar()
-        .ok_or_else(|| "标量求值遇到矩阵（矩阵请用 eval_value）".to_string())?;
+    let c = v.as_scalar().ok_or_else(|| {
+        Error::MatrixScalarMix("scalar evaluation met a matrix; use eval_value".into())
+    })?;
     if !c.is_real() {
-        return Err(Error::from(format!(
-            "标量求值结果是复数（{}+{}j）：请改用 eval_value 取复数值",
-            c.re, c.im
-        )));
+        return Err(Error::ComplexEvalResult { re: c.re, im: c.im });
     }
     Ok(c.re)
 }
@@ -1783,7 +1796,7 @@ impl C {
     pub fn div(self, o: C) -> Result<C, Error> {
         if o.is_real() {
             if o.re == 0.0 {
-                return Err(Error::from("除数为零"));
+                return Err(Error::DivisionByZero);
             }
             return Ok(C::new(self.re / o.re, self.im / o.re));
         }
@@ -1791,7 +1804,7 @@ impl C {
             let r = o.im / o.re;
             let den = o.re + o.im * r;
             if den == 0.0 {
-                return Err(Error::from("除数为零".to_string()));
+                return Err(Error::DivisionByZero);
             }
             Ok(C::new(
                 (self.re + self.im * r) / den,
@@ -1801,7 +1814,7 @@ impl C {
             let r = o.re / o.im;
             let den = o.re * r + o.im;
             if den == 0.0 {
-                return Err(Error::from("除数为零".to_string()));
+                return Err(Error::DivisionByZero);
             }
             Ok(C::new(
                 (self.re * r + self.im) / den,
@@ -1834,7 +1847,7 @@ impl C {
     /// Principal-value logarithm (negative real → imaginary part π).
     pub fn ln(self) -> Result<C, Error> {
         if self.re == 0.0 && self.im == 0.0 {
-            return Err(Error::from("复对数的真数为零".to_string()));
+            return Err(Error::LogOfZero);
         }
         Ok(C::new(math::ln(self.abs()), self.arg()))
     }
@@ -8946,8 +8959,8 @@ mod tests {
         // After IR expansion, a singular matrix reports division by zero at the "divide by det" step
         // (still an explicit error, not inf)
         let err = eval_value(&inv2, &sing).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("除数为零"), "{text}");
+        assert_eq!(err.code(), "division-by-zero", "{err}");
+        assert!(matches!(err, Error::DivisionByZero), "{err}");
     }
 
     #[test]
@@ -9016,9 +9029,21 @@ mod tests {
             vec![1.0, 1.0]
         );
         // A dimension that cannot be formed must error, and say so clearly
-        let err = dim_solve(&vars, parse_unit("V").unwrap()).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("凑不出"), "{text}");
+        let volt = parse_unit("V").unwrap();
+        let err = dim_solve(&vars, volt).unwrap_err();
+        // Catalogued: the stable code, and the payload carries the requested dimension
+        // (in its base-dimension display form).
+        assert_eq!(err.code(), "target-dimension-unreachable", "{err}");
+        match &err {
+            Error::TargetDimensionUnreachable { target, .. } => {
+                assert_eq!(*target, volt.display().to_string());
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(
+            err.to_string().contains(&volt.display().to_string()),
+            "{err}"
+        );
         // A dimensionless target gives the all-zero solution
         let zero = dim_solve(&vars, Dim::ZERO).unwrap();
         assert_eq!(zero, vec![0.0, 0.0]);

@@ -236,6 +236,29 @@ pub enum Error {
         name: String,
         id: String,
     },
+    /// A unit exponent written as `p/q` has `q == 0`.
+    ExponentZeroDenominator {
+        exponent: String,
+    },
+    /// No product of powers of the given variables has the target dimension.
+    TargetDimensionUnreachable {
+        target: String,
+        needed: usize,
+        spanned: usize,
+    },
+    /// A single-formula entry point received a set with several formulas.
+    ExpectedSingleFormula {
+        got: usize,
+    },
+    /// The scalar entry point produced a complex value; the complex entry point must be used.
+    ComplexEvalResult {
+        re: f64,
+        im: f64,
+    },
+    /// A division (real or complex) had a zero divisor.
+    DivisionByZero,
+    /// The complex logarithm was taken of zero.
+    LogOfZero,
     /// A user-visible label for an unnamed formula ("formula #3"), localized like a message.
     FormulaLabel(usize),
     /// A message that has not been catalogued yet. Rendering returns it verbatim, so a
@@ -303,6 +326,12 @@ impl Error {
             Error::NotEmittable(_) => "not-emittable",
             Error::UnsupportedOperation(_) => "unsupported-operation",
             Error::WgslReservedWord { .. } => "wgsl-reserved-word",
+            Error::ExponentZeroDenominator { .. } => "exponent-zero-denominator",
+            Error::TargetDimensionUnreachable { .. } => "target-dimension-unreachable",
+            Error::ExpectedSingleFormula { .. } => "expected-single-formula",
+            Error::ComplexEvalResult { .. } => "complex-eval-result",
+            Error::DivisionByZero => "division-by-zero",
+            Error::LogOfZero => "log-of-zero",
             Error::IoError(_) => "io-error",
         }
     }
@@ -345,6 +374,12 @@ impl Error {
             Error::NotEmittable(_) => "the expression cannot be emitted: {0}",
             Error::UnsupportedOperation(_) => "unsupported operation: {0}",
             Error::WgslReservedWord { .. } => "symbol `{0}` collides with the WGSL reserved word `{1}`: rename it or write the shader by hand",
+            Error::ExponentZeroDenominator { .. } => "unit exponent `{0}` has a zero denominator",
+            Error::TargetDimensionUnreachable { .. } => "these variables cannot form the dimension {0} ({1} basic dimensions are needed, the variables span only {2})",
+            Error::ExpectedSingleFormula { .. } => "expected a single formula, got {0}",
+            Error::ComplexEvalResult { .. } => "the scalar evaluation is complex ({0}+{1}j): use eval_value for the complex value",
+            Error::DivisionByZero => "division by zero",
+            Error::LogOfZero => "logarithm of zero is undefined",
             Error::IoError(_) => "I/O error: {0}",
             // `render` returns the message verbatim before consulting templates.
             Error::Message(_) => "{0}",
@@ -399,6 +434,16 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符号 `{0}` 与 WGSL 保留字 `{1}` 撞名：改个名字，或手写 shader"
             }
+            Error::ExponentZeroDenominator { .. } => "单位指数 `{0}` 的分母为零",
+            Error::TargetDimensionUnreachable { .. } => {
+                "这些变量凑不出量纲 {0}（需要 {1} 维基本量，变量只张出 {2} 维）"
+            }
+            Error::ExpectedSingleFormula { .. } => "期望单条公式，得到 {0} 条",
+            Error::ComplexEvalResult { .. } => {
+                "标量求值结果是复数（{0}+{1}j）：请改用 eval_value 取复数值"
+            }
+            Error::DivisionByZero => "除数为零",
+            Error::LogOfZero => "复对数的真数为零",
             Error::IoError(_) => "I/O 错误：{0}",
             Error::MatrixCoefficient(_) => {
                 "方程里 `{0}` 的系数是矩阵值：请解标量方程组或写 inv(A) * b"
@@ -455,6 +500,16 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符號 `{0}` 與 WGSL 保留字 `{1}` 撞名：改個名字，或手寫 shader"
             }
+            Error::ExponentZeroDenominator { .. } => "單位指數 `{0}` 的分母為零",
+            Error::TargetDimensionUnreachable { .. } => {
+                "這些變數湊不出量綱 {0}（需要 {1} 維基本量，變數只張出 {2} 維）"
+            }
+            Error::ExpectedSingleFormula { .. } => "期望單條公式，得到 {0} 條",
+            Error::ComplexEvalResult { .. } => {
+                "純量求值結果是複數（{0}+{1}j）：請改用 eval_value 取複數值"
+            }
+            Error::DivisionByZero => "除數為零",
+            Error::LogOfZero => "複對數的真數為零",
             Error::IoError(_) => "I/O 錯誤：{0}",
             Error::MatrixCoefficient(_) => {
                 "方程式裡 `{0}` 的係數是矩陣值：請解純量方程組或寫 inv(A) * b"
@@ -503,6 +558,12 @@ impl Error {
             Error::NotEmittable(_) => "この式はコードとして出力できません：{0}",
             Error::UnsupportedOperation(_) => "未対応の操作です：{0}",
             Error::WgslReservedWord { .. } => "シンボル `{0}` は WGSL の予約語 `{1}` と衝突します：名前を変えるか、シェーダーを手書きしてください",
+            Error::ExponentZeroDenominator { .. } => "単位の指数 `{0}` の分母がゼロです",
+            Error::TargetDimensionUnreachable { .. } => "これらの変数では次元 {0} を作れません（基本量 {1} 次元が必要ですが、変数は {2} 次元しか張りません）",
+            Error::ExpectedSingleFormula { .. } => "式は 1 つであるべきですが、{0} 個あります",
+            Error::ComplexEvalResult { .. } => "スカラー評価の結果が複素数です（{0}+{1}j）：複素数値は eval_value を使ってください",
+            Error::DivisionByZero => "ゼロで除算しています",
+            Error::LogOfZero => "ゼロの対数は定義できません",
             Error::IoError(_) => "I/O エラー：{0}",
             Error::MatrixCoefficient(_) => "式中の `{0}` の係数が行列です：スカラー連立方程式を解くか inv(A) * b と書いてください",
             Error::FormulaLabel(_) => "{0} 番目の式",
@@ -548,6 +609,12 @@ impl Error {
             Error::NotEmittable(_) => "이 식은 코드로 내보낼 수 없습니다: {0}",
             Error::UnsupportedOperation(_) => "지원하지 않는 연산입니다: {0}",
             Error::WgslReservedWord { .. } => "기호 `{0}`이(가) WGSL 예약어 `{1}`와 충돌합니다: 이름을 바꾸거나 셰이더를 직접 작성하세요",
+            Error::ExponentZeroDenominator { .. } => "단위 지수 `{0}`의 분모가 0입니다",
+            Error::TargetDimensionUnreachable { .. } => "이 변수들로는 차원 {0}을(를) 만들 수 없습니다(기본량 {1}차원이 필요하지만 변수는 {2}차원만 생성합니다)",
+            Error::ExpectedSingleFormula { .. } => "수식이 하나여야 하는데 {0}개가 있습니다",
+            Error::ComplexEvalResult { .. } => "스칼라 평가 결과가 복소수입니다({0}+{1}j): 복소수 값은 eval_value를 사용하세요",
+            Error::DivisionByZero => "0으로 나누었습니다",
+            Error::LogOfZero => "0의 로그는 정의되지 않습니다",
             Error::IoError(_) => "I/O 오류: {0}",
             Error::MatrixCoefficient(_) => "`{0}` 의 계수가 행렬입니다: 스칼라 연립방정식을 풀거나 inv(A) * b 를 쓰세요",
             Error::FormulaLabel(_) => "{0}번째 수식",
@@ -593,6 +660,12 @@ impl Error {
             Error::NotEmittable(_) => "cette expression ne peut pas être émise : {0}",
             Error::UnsupportedOperation(_) => "opération non prise en charge : {0}",
             Error::WgslReservedWord { .. } => "le symbole `{0}` entre en conflit avec le mot réservé WGSL `{1}` : renomme-le ou écris le shader à la main",
+            Error::ExponentZeroDenominator { .. } => "l'exposant d'unité `{0}` a un dénominateur nul",
+            Error::TargetDimensionUnreachable { .. } => "ces variables ne peuvent pas former la dimension {0} ({1} dimensions de base sont nécessaires, les variables n'en couvrent que {2})",
+            Error::ExpectedSingleFormula { .. } => "une seule formule était attendue, {0} ont été trouvées",
+            Error::ComplexEvalResult { .. } => "l'évaluation scalaire est complexe ({0}+{1}j) : utilisez eval_value pour la valeur complexe",
+            Error::DivisionByZero => "division par zéro",
+            Error::LogOfZero => "le logarithme de zéro n'est pas défini",
             Error::IoError(_) => "erreur d'E/S : {0}",
             Error::MatrixCoefficient(_) => "le coefficient de `{0}` est une matrice : résolvez un système scalaire ou écrivez inv(A) * b",
             Error::FormulaLabel(_) => "formule n° {0}",
@@ -638,6 +711,12 @@ impl Error {
             Error::NotEmittable(_) => "esta expresión no puede emitirse: {0}",
             Error::UnsupportedOperation(_) => "operación no soportada: {0}",
             Error::WgslReservedWord { .. } => "el símbolo `{0}` coincide con la palabra reservada de WGSL `{1}`: cámbiale el nombre o escribe el shader a mano",
+            Error::ExponentZeroDenominator { .. } => "el exponente de unidad `{0}` tiene denominador cero",
+            Error::TargetDimensionUnreachable { .. } => "estas variables no pueden formar la dimensión {0} (se necesitan {1} dimensiones básicas, las variables solo abarcan {2})",
+            Error::ExpectedSingleFormula { .. } => "se esperaba una sola fórmula, se encontraron {0}",
+            Error::ComplexEvalResult { .. } => "la evaluación escalar es compleja ({0}+{1}j): usa eval_value para el valor complejo",
+            Error::DivisionByZero => "división por cero",
+            Error::LogOfZero => "el logaritmo de cero no está definido",
             Error::IoError(_) => "error de E/S: {0}",
             Error::MatrixCoefficient(_) => "el coeficiente de `{0}` es una matriz: resuelva un sistema escalar o escriba inv(A) * b",
             Error::FormulaLabel(_) => "fórmula n.º {0}",
@@ -683,6 +762,12 @@ impl Error {
             Error::NotEmittable(_) => "выражение невозможно сгенерировать: {0}",
             Error::UnsupportedOperation(_) => "неподдерживаемая операция: {0}",
             Error::WgslReservedWord { .. } => "символ `{0}` совпадает с зарезервированным словом WGSL `{1}`: переименуйте его или напишите шейдер вручную",
+            Error::ExponentZeroDenominator { .. } => "знаменатель показателя степени единицы `{0}` равен нулю",
+            Error::TargetDimensionUnreachable { .. } => "эти переменные не могут образовать размерность {0} (нужно {1} базовых размерностей, а переменные дают только {2})",
+            Error::ExpectedSingleFormula { .. } => "ожидалась одна формула, найдено {0}",
+            Error::ComplexEvalResult { .. } => "результат скалярного вычисления — комплексное число ({0}+{1}j): используйте eval_value для комплексного значения",
+            Error::DivisionByZero => "деление на ноль",
+            Error::LogOfZero => "логарифм нуля не определён",
             Error::IoError(_) => "ошибка ввода-вывода: {0}",
             Error::MatrixCoefficient(_) => "коэффициент при `{0}` — матрица: решайте скалярную систему или пишите inv(A) * b",
             Error::FormulaLabel(_) => "формула № {0}",
@@ -736,6 +821,12 @@ impl Error {
             Error::NotEmittable(_) => "لا يمكن توليد تعليمات برمجية من هذا التعبير: {0}",
             Error::UnsupportedOperation(_) => "عملية غير مدعومة: {0}",
             Error::WgslReservedWord { .. } => "الرمز `{0}` يتعارض مع الكلمة المحجوزة في WGSL `{1}`: غيّر اسمه أو اكتب الـ shader يدويًا",
+            Error::ExponentZeroDenominator { .. } => "مقام أس الوحدة `{0}` يساوي صفرًا",
+            Error::TargetDimensionUnreachable { .. } => "لا يمكن لهذه المتغيرات تكوين البعد {0} (يلزم {1} بعدًا أساسيًا، لكن المتغيرات تمتد على {2} فقط)",
+            Error::ExpectedSingleFormula { .. } => "كانت الصيغة المتوقعة واحدة، لكن وُجدت {0}",
+            Error::ComplexEvalResult { .. } => "نتيجة التقييم العددي عدد مركّب ({0}+{1}j): استخدم eval_value للحصول على القيمة المركّبة",
+            Error::DivisionByZero => "قسمة على صفر",
+            Error::LogOfZero => "لوغاريتم الصفر غير معرّف",
             Error::IoError(_) => "خطأ في الإدخال/الإخراج: {0}",
             Error::MatrixCoefficient(_) => "معامل `{0}` مصفوفة: حلّ نظامًا قياسيًا أو اكتب inv(A) * b",
             Error::FormulaLabel(_) => "الصيغة رقم {0}",
@@ -1225,6 +1316,14 @@ impl Error {
             }
             Error::NoRealRoots { discriminant } => vec![format!("{discriminant:.6e}")],
             Error::WgslReservedWord { name, id } => vec![name.clone(), id.clone()],
+            Error::ExponentZeroDenominator { exponent } => vec![exponent.clone()],
+            Error::TargetDimensionUnreachable {
+                target,
+                needed,
+                spanned,
+            } => vec![target.clone(), needed.to_string(), spanned.to_string()],
+            Error::ExpectedSingleFormula { got } => vec![got.to_string()],
+            Error::ComplexEvalResult { re, im } => vec![format!("{re}"), format!("{im}")],
             _ => Vec::new(),
         }
     }
@@ -1367,6 +1466,31 @@ mod catalogue_completeness_tests {
     /// Every variant must be constructible with a realistic payload AND render cleanly in all
     /// nine locales. This is the exhaustive guard the README's reachability claim rests on: a
     /// variant that cannot be listed here is either dead or leaking a placeholder.
+    /// The multi-argument variants added by the core batches render their arguments in order:
+    /// the completeness test above only checks that every argument is *used*, not where.
+    #[test]
+    fn multi_argument_core_variants_render_their_arguments_in_order() {
+        let target = Error::TargetDimensionUnreachable {
+            target: "m/s".into(),
+            needed: 2,
+            spanned: 1,
+        };
+        assert_eq!(
+            target.arguments(),
+            vec!["m/s".to_string(), "2".to_string(), "1".to_string()]
+        );
+        assert_eq!(
+            target.render(Locale::En),
+            "these variables cannot form the dimension m/s (2 basic dimensions are needed, the variables span only 1)"
+        );
+        let cx = Error::ComplexEvalResult { re: 1.0, im: 2.0 };
+        assert_eq!(cx.arguments(), vec!["1".to_string(), "2".to_string()]);
+        assert_eq!(
+            cx.render(Locale::En),
+            "the scalar evaluation is complex (1+2j): use eval_value for the complex value"
+        );
+    }
+
     #[test]
     fn every_variant_renders_cleanly_in_every_locale() {
         let all: Vec<Error> = vec![
@@ -1450,10 +1574,22 @@ mod catalogue_completeness_tests {
                 name: "loop".into(),
                 id: "loop".into(),
             },
+            Error::ExponentZeroDenominator {
+                exponent: "1/0".into(),
+            },
+            Error::TargetDimensionUnreachable {
+                target: "m/s".into(),
+                needed: 2,
+                spanned: 1,
+            },
+            Error::ExpectedSingleFormula { got: 3 },
+            Error::ComplexEvalResult { re: 1.0, im: 2.0 },
+            Error::DivisionByZero,
+            Error::LogOfZero,
             Error::FormulaLabel(3),
             Error::Message("staged".into()),
         ];
-        assert_eq!(all.len(), 39, "update this list when a variant is added");
+        assert_eq!(all.len(), 45, "update this list when a variant is added");
         for err in &all {
             for locale in Locale::ALL {
                 let text = err.render(locale);
