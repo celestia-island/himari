@@ -16,6 +16,7 @@ members = [
     "packages/standards",
     "tools/staging-budget",
     "packages/lean",
+    "packages/gpu-verify",
 ]
 # 探针里有**预期编译失败**的 bin，必须留在 workspace 外面，
 # 否则 `cargo test --workspace` 会在构建阶段就炸掉。

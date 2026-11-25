@@ -1,0 +1,21 @@
+[package]
+name = "himari-gpu-verify"
+version = "0.1.0"
+edition.workspace = true
+description = "Execute emitted WGSL compute kernels on a real Vulkan device and compare them with the CPU evaluation lane."
+rust-version.workspace = true
+license-file.workspace = true
+publish = false
+
+# Why this crate is allowed a wider dependency surface than the library: it is a *manual
+# verification lane*, not part of `just verify` or CI. `ash` is a thin Vulkan binding (one crate,
+# no build script) and `naga` is already a dev-dependency of `himari-check`, here gaining its
+# SPIR-V back end. Nothing in `packages/himari` (or any published crate) depends on either.
+[dependencies]
+himari = { workspace = true, features = ["std"] }
+naga = { version = "30.0", default-features = false, features = ["wgsl-in", "spv-out"] }
+ash = { version = "0.38", default-features = false, features = ["loaded", "std"] }
+
+[[bin]]
+name = "himari-gpu-verify"
+path = "src/main.rs"
