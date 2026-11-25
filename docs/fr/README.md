@@ -939,19 +939,20 @@ De plus, tint (l'implémentation de Chrome/Dawn) et naga diffèrent sur quelques
 | systèmes linéaires de taille dynamique | voie d'exécution (decls `_matrix`/`_vector`) | `solve(A,b)` est vérifié (rcond + résidu) ; retourne `Result` |
 | exploration dimensionnelle | `himari-eval --groups` | groupes Π de Buckingham : plus besoin de dériver le nombre de Reynolds à la main |
 
-> Ce qui porte encore du chinois est de l'*autre* côté : les commentaires de doc du code généré, les diagnostics `FORMULA-ERROR` de la proc-macro, et les titres de correction rapide du LSP — rien de tout cela n'est un chemin du catalogue d'erreurs. La dette de mise en attente du catalogue est nulle, et la garde staging-budget ci-dessus (douze familles de construction, plafond appliqué par rapport à la base de fusion) est ce qui l'y maintient.
+> Tout ce que ce dépôt **émet** — commentaires de doc du code généré, charges utiles de `compile_error!`, diagnostics `FORMULA-ERROR` de la proc-macro, en-tête WGSL — est en anglais. La seule exception restante est constituée des *titres* de correction rapide du LSP (ses diagnostics sont localisés) ; ce sont des chaînes d'interface, pas un chemin du catalogue d'erreurs. La dette de mise en attente du catalogue est nulle, et la garde staging-budget ci-dessus (douze familles de construction, conditionnels et références `map_err` produisant des chaînes inclus, plafond appliqué par rapport à la base de fusion) est ce qui l'y maintient.
 
 **Erreurs avec carets**, **suggestions pour les noms de fonctions mal orthographiés** (`closest_func`, distance d'édition ≤ 2),
 **rejet des caractères invisibles**, **limites de profondeur/d'étapes** — ce ne sont pas des ornements, c'est la barre pour « oser laisser un collègue l'utiliser ».
 
 ## État
 
-Itération sur la branche `dev` (dépôt local, non poussé vers un distant). Les badges crates.io / docs.rs sont des points d'entrée réservés ;
-**rien n'a encore été publié** ; `publish = false` sur les crates formelles est le verrou de revue manuelle, et les exemples et fixtures restent également non publiables.
-Les dépendances internes portent déjà `version = "0.1"` avec des chemins locaux, et une fois la revue levée, elles doivent être publiées dans l'ordre topologique :
+Itération sur la branche `dev` (dépôt local, non poussé vers un distant). Les badges crates.io / docs.rs sont des points d'entrée réservés.
+Les crates de bibliothèque sont **publiables** : `cargo publish -p himari --dry-run` empaquette, reconstruit l'archive depuis ses propres sources et atteint l'étape de téléversement, et les neuf noms de crates sont encore libres sur crates.io.
+Ce qui reste, c'est le téléversement lui-même — il exige un token de registre et il est irréversible (un yank ne libère jamais un numéro de version), donc c'est une décision délibérée et séparée plutôt qu'une étape de build.
+Les exemples, fixtures et crates d'outillage restent non publiables.
+Les dépendances internes portent déjà `version = "0.1"` avec des chemins locaux, donc le téléversement doit suivre l'ordre topologique :
 `himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-La publication de l'outillage `himari-check` est décidée séparément. `himari-standards` et `himari-lean` sont de nouvelles crates `publish = false` dans l'espace de travail ;
-elles dépendent respectivement de `himari-macros` et `himari-loader`, donc elles ne changent pas cet ordre de publication.
+La publication de l'outillage `himari-check` est décidée séparément. `himari-standards` et `himari-lean` dépendent de `himari-macros` et `himari-loader`, donc elles ne changent pas cet ordre.
 Historique de la feuille de route et des compromis : `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## Vérification
@@ -977,10 +978,10 @@ Ce sont des limites de périmètre, pas une liste de tâches presque terminée. 
 - **Matrices de motif uniquement via la voie fichier** : la voie du constructeur pour les matrices de motif a besoin d'un nom de fichier et d'un générateur, donc les macros en ligne les rejettent
   avec une indication ; il n'y a pas de développement automatique de matrices de motif arbitraires (niveau recherche — tout ce qui est hors des formes intégrées est rejeté explicitement
   avec la liste supportée).
-- **La validation numérique WGSL est encore en attente** : naga prouve la syntaxe et les types, pas qu'un noyau calcule les bons nombres sur un GPU. Aucune exécution GPU n'a été faite ici.
+- **La validation numérique WGSL est mesurée, mais sur un périphérique logiciel** : `just gpu-verify` compile le noyau émis en SPIR-V, l'exécute via Vulkan et compare les résultats avec la voie f64 du CPU (quatre formules, seize points, pire erreur relative 3.2e-7 sur Mesa lavapipe ; échanger un seul opérateur fait échouer la voie). C'est un vrai chemin de pilote exécutant du vrai SPIR-V, donc il attrape les erreurs d'indexation, de constantes et de précédence — mais il ne mesure **pas** l'arrondi f32 spécifique au vendeur, l'ordonnancement des workgroups ni les bugs de pilote, et aucune exécution sur GPU matériel n'a été faite.
 - **La vérification Lean n'a pas réussi** : aucune chaîne d'outils n'est installée sur cet hôte, donc seuls les tests à processus factices ont tourné. Il n'y a aucune revendication que Lean accepte les
   obligations de preuve générées.
-- **`publish = false` est une garde de revue humaine** : les crates sont délibérément non publiables jusqu'à ce qu'une revue humaine la lève ; voir État.
+- **La publication est une décision séparée et irréversible** : les crates de bibliothèque sont publiables et le dry-run est propre, mais rien n'a été téléversé ; le premier téléversement est le point de non-retour pour un numéro de version. Voir État.
 - **Périmètre `no_std`** : `himari`, `himari-latex` et `himari-matlab` sont `no_std + alloc` ; les crates loader/buildhelper/macros/check ne le sont pas.
   Le code généré conserve sa propre voie libm, et les formules complexes ne font pas partie de la voie `no_std`.
 - **Pas de dérivées analytiques complexes, pas de variante f32 pour les formules complexes ou à valeur matricielle, pas de dérivée analytique pour les formules à valeur matricielle.**

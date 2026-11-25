@@ -938,19 +938,20 @@ Además, tint (la implementación de Chrome/Dawn) y naga difieren en algunas reg
 | sistemas lineales de tamaño dinámico | carril en tiempo de ejecución (decls `_matrix`/`_vector`) | `solve(A,b)` está comprobado (rcond + residuo); devuelve `Result` |
 | exploración dimensional | `himari-eval --groups` | grupos Π de Buckingham: sin derivar a mano el número de Reynolds |
 
-> Lo que aún lleva chino es el *otro* lado: los comentarios de doc del código generado, los diagnósticos `FORMULA-ERROR` de la proc-macro, y los títulos de corrección rápida del LSP — nada de eso es una ruta del catálogo de errores. La deuda de puesta en espera del catálogo es cero, y la puerta staging-budget de arriba (doce familias de construcción, techo aplicado contra la base de fusión) es lo que la mantiene ahí.
+> Todo lo que este repositorio **emite** — comentarios de doc del código generado, cargas de `compile_error!`, diagnósticos `FORMULA-ERROR` de la proc-macro, el encabezado WGSL — está en inglés. La única excepción que queda son los *títulos* de corrección rápida del LSP (sus diagnósticos están localizados); son una cadena de UI, no una ruta del catálogo de errores. La deuda de puesta en espera del catálogo es cero, y la puerta staging-budget de arriba (doce familias de construcción, condicionales y referencias `map_err` que producen cadenas incluidas, techo aplicado contra la base de fusión) es lo que la mantiene ahí.
 
 **Errores con caret**, **sugerencias para nombres de función mal escritos** (`closest_func`, distancia de edición ≤ 2),
 **rechazo de caracteres invisibles**, **límites de profundidad/pasos** — no son guarnición, son el listón para «atreverse a dejar que un colega use esto».
 
 ## Estado
 
-Iterando en la rama `dev` (repositorio local, no subido a un remoto). Las insignias de crates.io / docs.rs son puntos de entrada reservados;
-**todavía no se ha publicado nada**; `publish = false` en las crates formales es el bloqueo de revisión manual, y los ejemplos y fixtures también permanecen no publicables.
-Las dependencias internas ya llevan `version = "0.1"` con rutas locales, y una vez levantada la revisión deben publicarse en orden topológico:
+Iterando en la rama `dev` (repositorio local, no subido a un remoto). Las insignias de crates.io / docs.rs son puntos de entrada reservados.
+Las crates de biblioteca son **publicables**: `cargo publish -p himari --dry-run` empaqueta, reconstruye el archivo desde sus propias fuentes y llega al paso de subida, y los nueve nombres de crates siguen libres en crates.io.
+Lo que queda es la subida misma — necesita un token de registro y es irreversible (un yank nunca libera un número de versión), así que es una decisión deliberada y separada, no un paso de build.
+Los ejemplos, fixtures y las crates de herramientas permanecen no publicables.
+Las dependencias internas ya llevan `version = "0.1"` con rutas locales, así que la subida debe seguir el orden topológico:
 `himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-La publicación de las herramientas `himari-check` se decide por separado. `himari-standards` y `himari-lean` son crates nuevas `publish = false` en el workspace;
-dependen de `himari-macros` y `himari-loader` respectivamente, así que no cambian ese orden de publicación.
+La publicación de las herramientas `himari-check` se decide por separado. `himari-standards` y `himari-lean` dependen de `himari-macros` y `himari-loader`, así que no cambian ese orden.
 Historial de la hoja de ruta y los compromisos: `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## Verificación
@@ -976,10 +977,10 @@ Estos son límites de alcance, no una lista de tareas casi terminada. Diga «no 
 - **Matrices de patrón solo por el carril de archivos**: el carril de constructor para matrices de patrón necesita un nombre de archivo y un generador, así que las macros en línea las rechazan
   con una indicación; no hay expansión automática de matrices de patrón arbitrarias (nivel de investigación — todo lo que está fuera de las formas integradas se rechaza explícitamente
   con la lista soportada).
-- **La validación numérica de WGSL sigue pendiente**: naga prueba sintaxis y tipos, no que un kernel calcule los números correctos en una GPU. Aquí no se ha hecho ninguna ejecución en GPU.
+- **La validación numérica de WGSL está medida, pero en un dispositivo de software**: `just gpu-verify` compila el kernel emitido a SPIR-V, lo ejecuta a través de Vulkan y compara los resultados con el carril f64 del CPU (cuatro fórmulas, dieciséis puntos, peor error relativo 3.2e-7 en Mesa lavapipe; intercambiar un solo operador hace fallar el carril). Es una ruta de driver real ejecutando SPIR-V real, así que atrapa indexación, constantes y precedencia incorrectas — pero **no** mide el redondeo f32 específico del vendedor, la planificación de workgroups ni los bugs de driver, y no se ha hecho ninguna ejecución en GPU de hardware.
 - **La verificación con Lean no ha tenido éxito**: no hay ninguna cadena de herramientas instalada en este host, así que solo se ejecutaron las pruebas de procesos simulados. No hay reivindicación de que Lean acepte
   las obligaciones de demostración generadas.
-- **`publish = false` es una puerta de revisión humana**: las crates son deliberadamente no publicables hasta que una revisión humana la levante; véase Estado.
+- **La publicación es una decisión separada e irreversible**: las crates de biblioteca son publicables y el dry-run está limpio, pero no se ha subido nada; la primera subida es el punto de no retorno para un número de versión. Véase Estado.
 - **Alcance `no_std`**: `himari`, `himari-latex` y `himari-matlab` son `no_std + alloc`; las crates loader/buildhelper/macros/check no lo son.
   El código generado conserva su propio carril libm, y las fórmulas complejas no forman parte del carril `no_std`.
 - **Sin derivadas analíticas complejas, sin variante f32 para fórmulas complejas o con valor matricial, sin derivada analítica para fórmulas con valor matricial.**
