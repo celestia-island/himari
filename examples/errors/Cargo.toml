@@ -1,0 +1,13 @@
+[package]
+name = "himari-example-errors"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "errors"
+path = "src/main.rs"
+
+[dependencies]
+
+himari = { workspace = true, features = ["std"] }

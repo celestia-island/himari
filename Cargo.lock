@@ -174,10 +174,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "himari-example-errors"
+version = "0.0.0"
+dependencies = [
+ "himari",
+]
+
+[[package]]
+name = "himari-example-quickstart"
+version = "0.0.0"
+dependencies = [
+ "himari",
+ "himari-macros",
+]
+
+[[package]]
 name = "himari-example-reentry"
 version = "0.0.0"
 dependencies = [
  "himari-buildhelper",
+]
+
+[[package]]
+name = "himari-example-symbolic"
+version = "0.0.0"
+dependencies = [
+ "himari",
+]
+
+[[package]]
+name = "himari-example-units"
+version = "0.0.0"
+dependencies = [
+ "himari",
+]
+
+[[package]]
+name = "himari-example-wgsl"
+version = "0.0.0"
+dependencies = [
+ "himari",
 ]
 
 [[package]]
