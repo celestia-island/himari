@@ -943,13 +943,7 @@ WGSL 没有表达式体函数；主体必须是 `return expr;`，而生成器一
 
 ## 状态
 
-仓库在组织内（`celestia-island/himari`，单一 squash master）。crates.io / docs.rs 徽章是预留的入口。
-库 crates 是**可发布的**：`cargo publish -p himari --dry-run` 会打包、用自己的源码重建归档并走到上传那一步，且全部九个 crate 名在 crates.io 上仍然空闲。
-剩下的是上传本身——它需要 registry token，而且不可逆（yank 永远不会释放版本号），所以这是一个刻意的、独立的决定，而不是一个构建步骤。
-示例、fixtures 与工具类 crates 保持不可发布。
-内部依赖已经带着 `version = "0.1"` 与本地路径，因此上传必须按拓扑顺序进行：
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`。
-`himari-check` 工具的发行另行决定。`himari-standards` 与 `himari-lean` 依赖 `himari-macros` 与 `himari-loader`，所以不改变那个顺序。
+仓库在组织内（`celestia-island/himari`，单一 squash master）。**0.1.0 已发布**：全部八个库 crates（`himari`、`himari-latex`、`himari-matlab`、`himari-loader`、`himari-buildhelper`、`himari-macros`、`himari-standards`、`himari-lean`）自 2026-11-25 起已在 crates.io 上，按拓扑顺序经 `publish.yml` 车道上传（`CRATES_IO_API_TOKEN`，每个 crate 幂等）。后续发布走同一条车道：master 上的 `v*` tag，或一次 `workflow_dispatch` 重跑。示例、fixtures 与工具类 crates（`himari-check`、`himari-staging-budget`、`himari-gpu-verify`）保持不发布。`cargo add himari himari-macros` 是消费宏车道的受支持方式；docs.rs 在发布时构建每个 crate 的文档。
 路线图与取舍的历史：`_reports/math-formula-20261122/`（REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER）。
 
 ## 验证
@@ -978,7 +972,7 @@ WGSL 的真 naga 编译，以及规范形式/sidecar/锁与生成代码的漂移
 - **WGSL 数值验证已测量，但是在软件设备上**：`just gpu-verify` 把生成的 kernel 编译为 SPIR-V、经 Vulkan 执行并与 f64 CPU 通道比较结果（四个公式、十六个点、最坏相对误差 3.2e-7，Mesa lavapipe；替换任一算子都会使该通道失败）。那是执行真实 SPIR-V 的真实驱动路径，因此能抓住错误的索引、常量与优先级——但它**不**测量特定厂商的 f32 舍入、workgroup 调度或驱动 bug，也没有做过任何硬件 GPU 运行。
 - **Lean 验证尚未成功**：这台主机没有安装工具链，所以只跑了 stub-process 测试。没有声称 Lean 接受
   生成的证明义务。
-- **发布是单独的、不可逆的决定**：库 crates 可发布且 dry-run 干净，但尚无任何上传；第一次上传就是版本号的不归点。见“状态”。
+- **已发布的 0.1.0 是不可变的**：八个库 crates 已在 crates.io 上（2026-11-25）；yank 只是隐藏一个版本，永远不会释放版本号——所以 0.1.x 的修复以 `0.1.1+` 发布，绝不通过重新发布 `0.1.0`。见“状态”。
 - **`no_std` 范围**：`himari`、`himari-latex` 与 `himari-matlab` 是 `no_std + alloc`；loader/buildhelper/macros/check crates 则不是。
   生成的代码保留自己的 libm 车道，而复数公式不属于 `no_std` 车道。
 - **没有复数解析导数、没有复数或矩阵值公式的 f32 变体、没有矩阵值公式的解析导数。**

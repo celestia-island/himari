@@ -970,17 +970,15 @@ Also, tint (Chrome/Dawn's implementation) and naga differ on a few edge rules; t
 
 ## Status
 
-The repository lives on the org (`celestia-island/himari`, single squashed master). The library
-crates are **publishable**: `cargo publish -p himari --dry-run` packages, rebuilds the archive from
-its own sources and reaches the upload step, and all nine crate names are still free on crates.io.
-What remains is the upload itself — it needs a registry token and it is irreversible (a yank never
-frees a version number), so it is a deliberate, separate decision rather than a build step.
-Examples, fixtures and the tooling crates stay unpublishable.
-Internal dependencies already carry `version = "0.1"` with local paths, so the upload must follow
-the topological order:
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-The `himari-check` tooling release is decided separately. `himari-standards` and `himari-lean`
-depend on `himari-macros` and `himari-loader` respectively, so they do not change that order.
+The repository lives on the org (`celestia-island/himari`, single squashed master). **0.1.0 is
+published**: all eight library crates (`himari`, `himari-latex`, `himari-matlab`, `himari-loader`,
+`himari-buildhelper`, `himari-macros`, `himari-standards`, `himari-lean`) are on crates.io since
+2026-11-25, uploaded in topological order through the `publish.yml` lane (`CRATES_IO_API_TOKEN`,
+idempotent per crate). Future releases follow the same lane: a `v*` tag on master or a
+`workflow_dispatch` re-run. Examples, fixtures and the tooling crates (`himari-check`,
+`himari-staging-budget`, `himari-gpu-verify`) stay unpublished.
+`cargo add himari himari-macros` is the supported way to consume the macro lane; docs.rs builds
+each crate's documentation on publish.
 History of the roadmap and trade-offs: `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## Verification
@@ -1009,7 +1007,7 @@ These are scope limits, not a to-do list that is nearly done. Say "not claimed" 
 - **WGSL numeric validation is measured, but on a software device**: `just gpu-verify` compiles the emitted kernel to SPIR-V, executes it through Vulkan and compares the results with the f64 CPU lane (four formulas, sixteen points, worst relative error 3.2e-7 on Mesa lavapipe; swapping one operator makes the lane fail). That is a real driver path executing real SPIR-V, so it catches wrong indexing, constants and precedence — it does **not** measure vendor-specific f32 rounding, workgroup scheduling or driver bugs, and no hardware-GPU run has been made.
 - **Lean verification has not succeeded**: no toolchain is installed on this host, so only the stub-process tests ran. There is no claim that Lean accepts the
   generated proof obligations.
-- **Publishing is a separate, irreversible decision**: the library crates are publishable and dry-run clean, but nothing has been uploaded; the first upload is the point of no return for a version number. See Status.
+- **Published 0.1.0 is immutable**: the eight library crates are on crates.io (2026-11-25); a yank only hides a version, it never frees the number — so 0.1.x fixes ship as `0.1.1+`, never by re-publishing `0.1.0`. See Status.
 - **`no_std` scope**: `himari`, `himari-latex` and `himari-matlab` are `no_std + alloc`; the loader/buildhelper/macros/check crates are not.
   Generated code keeps its own libm lane, and complex formulas are not part of the `no_std` lane.
 - **No complex analytic derivatives, no f32 variant for complex or matrix-valued formulas, no analytic derivative for matrix-valued formulas.**

@@ -945,13 +945,7 @@ WGSL には式本体の関数がなく、本体は `return expr;` でなけれ�
 
 ## ステータス
 
-リポジトリは org 上にあります（`celestia-island/himari`、単一の squash master）。crates.io / docs.rs のバッジは予約された入口です。
-ライブラリクレートは**公開可能**です：`cargo publish -p himari --dry-run` はパッケージ化し、独自のソースからアーカイブを再ビルドしてアップロードのステップに到達します。そして 9 つのクレート名はすべて crates.io でまだ空いています。
-残っているのはアップロード自体——registry token が必要で、不可逆（yank はバージョン番号を決して解放しません）なので、ビルドステップではなく意図的で独立した決定です。
-例、fixture、ツール系クレートは公開不可のままです。
-内部依存はすでにローカルパスとともに `version = "0.1"` を持つため、アップロードはトポロジカル順に従わなければなりません：
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`。
-`himari-check` ツールのリリースは別途決めます。`himari-standards` と `himari-lean` は `himari-macros` と `himari-loader` に依存するため、その順序は変わりません。
+リポジトリは org 上にあります（`celestia-island/himari`、単一の squash master）。**0.1.0 は公開済み**です：8 つのライブラリクレート（`himari`、`himari-latex`、`himari-matlab`、`himari-loader`、`himari-buildhelper`、`himari-macros`、`himari-standards`、`himari-lean`）が 2026-11-25 から crates.io 上にあり、トポロジカル順に `publish.yml` レーン経由でアップロードされました（`CRATES_IO_API_TOKEN`、クレートごとに冪等）。今後のリリースも同じレーンに従います：master 上の `v*` タグ、または `workflow_dispatch` の再実行。例、fixture、ツール系クレート（`himari-check`、`himari-staging-budget`、`himari-gpu-verify`）は公開されないままです。`cargo add himari himari-macros` がマクロレーンを利用するためのサポートされている方法です。docs.rs は公開時に各クレートのドキュメントをビルドします。
 ロードマップとトレードオフの履歴：`_reports/math-formula-20261122/`（REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER）。
 
 ## 検証
@@ -980,7 +974,7 @@ WGSL の本物の naga によるコンパイル、そして正規形/サイド�
 - **WGSL の数値検証は測定済み、ただしソフトウェアデバイス上**：`just gpu-verify` は生成されたカーネルを SPIR-V にコンパイルし、Vulkan 経由で実行して f64 CPU レーンと比較します（4 公式、16 点、最悪相対誤差 3.2e-7、Mesa lavapipe。演算子を一つ入れ替えるとレーンは失敗します）。これは実際の SPIR-V を実行する実際のドライバ経路なので、誤ったインデックス、定数、優先順位を捕捉します——ただしベンダ固有の f32 丸め、ワークグループのスケジューリング、ドライバのバグは**測定せず**、ハードウェア GPU での実行は行われていません。
 - **Lean の検証は成功していません**：このホストにはツールチェーンが入っていないので、走ったのはスタブプロセスのテストだけです。Lean が
   生成された証明義務を受け入れるという主張はありません。
-- **公開は別個の、不可逆な決定です**：ライブラリクレートは公開可能で dry-run もクリーンですが、アップロードはまだ何もされていません。最初のアップロードがバージョン番号の不帰点です。ステータスを参照。
+- **公開済みの 0.1.0 は不変です**：8 つのライブラリクレートが crates.io 上にあります（2026-11-25）。yank はバージョンを隠すだけで、バージョン番号を決して解放しません——したがって 0.1.x の修正は `0.1.1+` として公開され、`0.1.0` の再公開は決して行いません。ステータスを参照。
 - **`no_std` の範囲**：`himari`、`himari-latex`、`himari-matlab` は `no_std + alloc` です。loader/buildhelper/macros/check のクレートはそうではありません。
   生成コードは自分自身の libm レーンを保ち、複素数数式は `no_std` レーンに含まれません。
 - **複素数の解析的導関数はなく、複素数や行列値の数式の f32 変種もなく、行列値の数式の解析的導関数もありません。**
