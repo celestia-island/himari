@@ -13,10 +13,18 @@
 //! The ceiling lives in `tools/staging-budget/src/ceiling.txt` and may only go down.
 //! `--against-git` reads that file from `HEAD` and fails if the working-tree ceiling is higher;
 //! an unreadable ceiling or an unavailable baseline is a hard error, never a silent downgrade.
+//!
+//! `--list` additionally prints every counted site as `<path>:<line>  <bucket>  <source line>`
+//! (path relative to the repository root, line 1-based) before the usual summary, so a batch
+//! that retires sites can be reviewed line by line and the before/after lists diffed. The list
+//! is produced by the same walk that produces the count, so `list.len()` is always `total`.
+//! Any other argument is a usage error (exit 2): a mistyped flag must never silently
+//! disable a check.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use syn::spanned::Spanned;
 use syn::{visit::Visit, Expr, ExprPath, Item};
 
 fn parse_ceiling(text: &str) -> Option<usize> {
@@ -54,6 +62,38 @@ impl Counts {
             + self.new_str
             + self.new_format
     }
+}
+
+/// One counted construction, as reported by `--list`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Site {
+    /// Path relative to the repository root, with `/` separators.
+    pub path: String,
+    /// 1-based line of the construction's first token.
+    pub line: usize,
+    /// Bucket name, identical to the summary's label: `error_from`, `error_message`,
+    /// `plain_str`, `plain_format`, `new_str`, `new_format`.
+    pub bucket: &'static str,
+    /// The source line, trimmed (the construction may span several lines; this is the first).
+    pub source: String,
+}
+
+impl Site {
+    /// `<path>:<line>  <bucket>  <source>` — the exact `--list` line.
+    pub fn render(&self) -> String {
+        format!(
+            "{}:{}  {:<13}  {}",
+            self.path, self.line, self.bucket, self.source
+        )
+    }
+}
+
+/// The result of walking a repository: what was counted and where.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Scan {
+    pub counts: Counts,
+    /// Sorted by `(path, line)`; always `counts.total()` long.
+    pub sites: Vec<Site>,
 }
 
 /// True only when a `#[cfg(..)]` attribute's predicate is test-only (the item is compiled
@@ -162,7 +202,29 @@ fn is_format_macro(e: &Expr) -> bool {
 #[derive(Default)]
 struct Counter {
     c: Counts,
+    sites: Vec<Site>,
     test_depth: usize,
+    /// Repository-relative path and the file's lines, for `Site` reporting.
+    path: String,
+    lines: Vec<String>,
+}
+
+impl Counter {
+    /// Record one counted construction at the expression's first token.
+    fn record(&mut self, bucket: &'static str, e: &Expr) {
+        let line = e.span().start().line;
+        let source = self
+            .lines
+            .get(line.saturating_sub(1))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        self.sites.push(Site {
+            path: self.path.clone(),
+            line,
+            bucket,
+            source,
+        });
+    }
 }
 
 impl<'ast> Visit<'ast> for Counter {
@@ -209,11 +271,16 @@ impl<'ast> Visit<'ast> for Counter {
     }
 }
 
-/// Count the staging constructions in one parsed file.
-fn count_file(file: &syn::File) -> Counts {
-    let mut c = Counter::default();
+/// Count the staging constructions in one parsed file, and record where each one is.
+/// `path` is repository-relative; `src` is the text `file` was parsed from.
+fn count_file(file: &syn::File, path: &str, src: &str) -> (Counts, Vec<Site>) {
+    let mut c = Counter {
+        path: path.to_string(),
+        lines: src.lines().map(str::to_owned).collect(),
+        ..Counter::default()
+    };
     c.visit_file(file);
-    c.c
+    (c.c, c.sites)
 }
 
 fn item_attrs(i: &Item) -> Option<&[syn::Attribute]> {
@@ -246,11 +313,13 @@ impl Counter {
         // Error::from(..)
         if path_ends_with(path, "Error", "from") {
             self.c.error_from += 1;
+            self.record("error_from", e);
             return;
         }
         // Error::Message(..) — a *call* is a construction by definition; patterns are not Exprs.
         if path_ends_with(path, "Error", "Message") {
             self.c.error_message += 1;
+            self.record("error_message", e);
             return;
         }
         // FrontError::plain("…") / plain(format!(..))
@@ -258,8 +327,10 @@ impl Counter {
             if let Some(a) = args.first() {
                 if lit_str(a) {
                     self.c.plain_str += 1;
+                    self.record("plain_str", e);
                 } else if is_format_macro(a) {
                     self.c.plain_format += 1;
+                    self.record("plain_format", e);
                 }
             }
             return;
@@ -269,8 +340,10 @@ impl Counter {
             if let Some(a) = args.iter().nth(2) {
                 if lit_str(a) {
                     self.c.new_str += 1;
+                    self.record("new_str", e);
                 } else if is_format_macro(a) {
                     self.c.new_format += 1;
+                    self.record("new_format", e);
                 }
             }
         }
@@ -349,18 +422,18 @@ impl Verdict {
     }
 }
 
-/// Runs the gate against `repo` and returns the verdict — no process exits, no stdout, so the
-/// whole contract (exit codes included) is unit-testable. `main` only maps it onto the process.
-pub fn run(repo: &Path, against_git: bool) -> Verdict {
-    // Scan every production tree in the workspace: `packages/`, `examples/` and `tools/`.
-    // A root that has none of them cannot vouch for anything.
+/// Walk every production Rust file under `packages/`, `examples/` and `tools/` and return what
+/// was counted and where. Errors are the reasons the gate cannot vouch (no roots, no files,
+/// unparseable sources) — the caller maps them onto `Verdict::CannotVouch`.
+pub fn scan(repo: &Path) -> Result<Scan, String> {
+    // A root that has none of the production trees cannot vouch for anything.
     let roots: Vec<PathBuf> = ["packages", "examples", "tools"]
         .iter()
         .map(|r| repo.join(r))
         .filter(|r| r.is_dir())
         .collect();
     if roots.is_empty() {
-        return Verdict::CannotVouch(format!(
+        return Err(format!(
             "no packages/, examples/ or tools/ under {} — refusing a vacuous zero",
             repo.display()
         ));
@@ -372,12 +445,12 @@ pub fn run(repo: &Path, against_git: bool) -> Verdict {
     files.sort();
     files.dedup();
     if files.is_empty() {
-        return Verdict::CannotVouch(format!(
+        return Err(format!(
             "no Rust files under {roots:?} — refusing a vacuous zero"
         ));
     }
 
-    let mut total_counts = Counts::default();
+    let mut out = Scan::default();
     let mut parse_errors: Vec<String> = Vec::new();
     for f in &files {
         let src = std::fs::read_to_string(f).unwrap_or_default();
@@ -388,21 +461,40 @@ pub fn run(repo: &Path, against_git: bool) -> Verdict {
                 continue;
             }
         };
-        let c = count_file(&file);
-        total_counts.error_from += c.error_from;
-        total_counts.error_message += c.error_message;
-        total_counts.plain_str += c.plain_str;
-        total_counts.plain_format += c.plain_format;
-        total_counts.new_str += c.new_str;
-        total_counts.new_format += c.new_format;
+        let rel = f
+            .strip_prefix(repo)
+            .unwrap_or(f)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let (c, sites) = count_file(&file, &rel, &src);
+        out.counts.error_from += c.error_from;
+        out.counts.error_message += c.error_message;
+        out.counts.plain_str += c.plain_str;
+        out.counts.plain_format += c.plain_format;
+        out.counts.new_str += c.new_str;
+        out.counts.new_format += c.new_format;
+        out.sites.extend(sites);
     }
     if !parse_errors.is_empty() {
-        return Verdict::CannotVouch(format!(
+        return Err(format!(
             "{} file(s) failed to parse — the gate cannot vouch for them: {}",
             parse_errors.len(),
             parse_errors.join("; ")
         ));
     }
+    // Sites are already in `(path, line)` order: files are walked in sorted path order and
+    // `syn` visits items and expressions in source order, so no explicit sort is needed. The
+    // ordering test pins this; change the walk and it goes red.
+    Ok(out)
+}
+
+/// Runs the gate against `repo` and returns the verdict — no process exits, no stdout, so the
+/// whole contract (exit codes included) is unit-testable. `main` only maps it onto the process.
+pub fn run(repo: &Path, against_git: bool) -> Verdict {
+    let total_counts = match scan(repo) {
+        Ok(s) => s.counts,
+        Err(why) => return Verdict::CannotVouch(why),
+    };
 
     // No fallback: an unreadable or malformed ceiling would silently disarm the budget, so it
     // is a hard error exactly like an unavailable baseline.
@@ -438,40 +530,80 @@ pub fn run(repo: &Path, against_git: bool) -> Verdict {
     }
 }
 
-fn main() {
-    let mut repo = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let args: Vec<String> = std::env::args().collect();
-    let mut against_git = args.iter().any(|a| a == "--against-git");
-    if let Some(i) = args.iter().position(|a| a == "--root") {
-        let Some(v) = args.get(i + 1) else {
-            eprintln!("staging-budget: --root requires a directory argument");
-            std::process::exit(2);
-        };
-        repo = PathBuf::from(v);
+/// The command line, with stdout injected so the `--list` path is unit-testable. `args` excludes
+/// the program name; `cwd` is where `--root` is resolved against. Returns the process exit code
+/// (0 clean, 1 over budget, 2 cannot vouch); failures still go to stderr like the real CLI.
+fn cli(args: &[String], cwd: &Path, ci_env: bool, out: &mut dyn std::io::Write) -> i32 {
+    let mut repo = cwd.to_path_buf();
+    let mut against_git = false;
+    let mut list = false;
+    // Every argument must be a known flag. A typo fails loudly with exit 2 — it must never
+    // silently disable a check (`--against-gi` in CI would otherwise skip the monotonicity
+    // gate), and nothing but the flags below may influence the verdict.
+    let mut it = args.iter().enumerate();
+    while let Some((i, a)) = it.next() {
+        match a.as_str() {
+            "--against-git" => against_git = true,
+            "--list" => list = true,
+            "--root" => match args.get(i + 1) {
+                Some(v) => {
+                    repo = PathBuf::from(v);
+                    it.next(); // the value is consumed, never treated as a flag
+                }
+                None => {
+                    eprintln!("staging-budget: --root requires a directory argument");
+                    return 2;
+                }
+            },
+            other => {
+                eprintln!(
+                    "staging-budget: unknown argument `{other}` (expected --against-git, --list or --root <dir>)"
+                );
+                return 2;
+            }
+        }
     }
-    if std::env::var_os("CI").is_some() {
+    // Under CI the monotonicity check is implied, exactly as before.
+    if ci_env {
         against_git = true;
+    }
+    // `--list`: one line per counted site, before the summary. Printed for over-budget trees too
+    // (that is when the list is most wanted); when the walk itself fails, `run` reports why.
+    if list {
+        if let Ok(s) = scan(&repo) {
+            for site in &s.sites {
+                let _ = writeln!(out, "{}", site.render());
+            }
+        }
     }
     match run(&repo, against_git) {
         Verdict::Clean { counts: c, ceiling } => {
-            println!("error_from     {}", c.error_from);
-            println!("error_message  {}", c.error_message);
-            println!("plain_str      {}", c.plain_str);
-            println!("plain_format   {}", c.plain_format);
-            println!("new_str        {}", c.new_str);
-            println!("new_format     {}", c.new_format);
-            println!("total          {}  (ceiling {ceiling})", c.total());
-            println!("staging-budget: clean");
+            let _ = writeln!(out, "error_from     {}", c.error_from);
+            let _ = writeln!(out, "error_message  {}", c.error_message);
+            let _ = writeln!(out, "plain_str      {}", c.plain_str);
+            let _ = writeln!(out, "plain_format   {}", c.plain_format);
+            let _ = writeln!(out, "new_str        {}", c.new_str);
+            let _ = writeln!(out, "new_format     {}", c.new_format);
+            let _ = writeln!(out, "total          {}  (ceiling {ceiling})", c.total());
+            let _ = writeln!(out, "staging-budget: clean");
+            0
         }
         Verdict::OverBudget(why) => {
             eprintln!("staging-budget: FAIL — {why}");
-            std::process::exit(1);
+            1
         }
         Verdict::CannotVouch(why) => {
             eprintln!("staging-budget: FAIL — {why}");
-            std::process::exit(2);
+            2
         }
     }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let ci_env = std::env::var_os("CI").is_some();
+    std::process::exit(cli(&args, &cwd, ci_env, &mut std::io::stdout().lock()));
 }
 
 #[cfg(test)]
@@ -789,7 +921,7 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
     /// Parse `src` and return the six bucket counts as a tuple in printing order.
     fn counts(src: &str) -> (usize, usize, usize, usize, usize, usize) {
         let file = syn::parse_file(src).expect("test source must parse");
-        let c = count_file(&file);
+        let (c, _) = count_file(&file, "pkg/src/lib.rs", src);
         (
             c.error_from,
             c.error_message,
@@ -1244,5 +1376,208 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
             assert!(names.contains(&"lib.rs".to_string()), "{names:?}");
             assert!(names.contains(&"target_tests.rs".to_string()), "{names:?}");
         }
+    }
+
+    /// Six sites, one per bucket, at known lines, followed by a test-only site that must not count.
+    const SIX_SITES: &str = r#"
+fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }
+fn b() -> Result<(), Error> { Err(Error::from("x")) }
+fn c() -> Result<(), FrontError> { Err(FrontError::plain("x")) }
+fn d(s: &str) -> Result<(), FrontError> { Err(FrontError::plain(format!("{s}"))) }
+fn e() -> Result<(), FrontError> { Err(FrontError::new(1, 2, "x")) }
+fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!("{s}"))) }
+#[cfg(test)]
+mod t { fn g() -> Result<(), Error> { Err(Error::from("test only")) } }
+"#;
+
+    #[test]
+    fn list_reports_every_counted_site_with_relative_path_line_and_bucket() {
+        let ws = Workspace::new("10usize", SIX_SITES);
+        let s = scan(ws.path()).unwrap();
+        let rendered: Vec<String> = s.sites.iter().map(Site::render).collect();
+        assert_eq!(
+            rendered,
+            vec![
+                "packages/p/src/lib.rs:2  error_message  fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }",
+                "packages/p/src/lib.rs:3  error_from     fn b() -> Result<(), Error> { Err(Error::from(\"x\")) }",
+                "packages/p/src/lib.rs:4  plain_str      fn c() -> Result<(), FrontError> { Err(FrontError::plain(\"x\")) }",
+                "packages/p/src/lib.rs:5  plain_format   fn d(s: &str) -> Result<(), FrontError> { Err(FrontError::plain(format!(\"{s}\"))) }",
+                "packages/p/src/lib.rs:6  new_str        fn e() -> Result<(), FrontError> { Err(FrontError::new(1, 2, \"x\")) }",
+                "packages/p/src/lib.rs:7  new_format     fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!(\"{s}\"))) }",
+            ]
+        );
+    }
+
+    #[test]
+    fn list_length_always_equals_the_counted_total() {
+        // A test-gated site and an i18n.rs file are both walked past; neither may appear.
+        let ws = Workspace::new("10usize", SIX_SITES);
+        std::fs::write(
+            ws.path().join("packages/p/src/i18n.rs"),
+            "fn z() -> Result<(), Error> { Err(Error::from(\"catalogue\")) }",
+        )
+        .unwrap();
+        let s = scan(ws.path()).unwrap();
+        assert_eq!(s.counts.total(), 6);
+        assert_eq!(s.sites.len(), s.counts.total());
+        assert!(s.sites.iter().all(|x| !x.path.ends_with("i18n.rs")));
+        assert!(s.sites.iter().all(|x| !x.source.contains("test only")));
+        // The verdict is computed from the same walk, so the totals agree.
+        let Verdict::Clean { counts, .. } = run(ws.path(), false) else {
+            panic!("within budget must be clean")
+        };
+        assert_eq!(counts, s.counts);
+    }
+
+    /// One site in each of the three scan roots plus a second file in `packages/`, so the
+    /// expected order exercises the cross-root `files.sort()` (`examples/` sorts before
+    /// `packages/` although it is walked after it) and the in-file source order.
+    #[test]
+    fn list_is_sorted_by_path_then_line_across_files_and_roots() {
+        let ws = Workspace::new("10usize", ONE_SITE);
+        std::fs::create_dir_all(ws.path().join("packages/q/src")).unwrap();
+        std::fs::write(
+            ws.path().join("packages/q/src/lib.rs"),
+            "fn q() -> Result<(), Error> { Err(Error::from(\"x\")) }\nfn r() -> Result<(), Error> { Err(Error::from(\"y\")) }",
+        )
+        .unwrap();
+        std::fs::create_dir_all(ws.path().join("examples/x/src")).unwrap();
+        std::fs::write(ws.path().join("examples/x/src/lib.rs"), ONE_SITE).unwrap();
+        std::fs::create_dir_all(ws.path().join("tools/t/src")).unwrap();
+        std::fs::write(ws.path().join("tools/t/src/lib.rs"), ONE_SITE).unwrap();
+        let s = scan(ws.path()).unwrap();
+        assert_eq!(s.counts.total(), 5);
+        let keys: Vec<(String, usize)> = s.sites.iter().map(|x| (x.path.clone(), x.line)).collect();
+        assert_eq!(
+            keys,
+            vec![
+                ("examples/x/src/lib.rs".to_string(), 1),
+                ("packages/p/src/lib.rs".to_string(), 1),
+                ("packages/q/src/lib.rs".to_string(), 1),
+                ("packages/q/src/lib.rs".to_string(), 2),
+                ("tools/t/src/lib.rs".to_string(), 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn scan_reports_the_same_cannot_vouch_reason_as_run() {
+        let ws = Workspace::new("10usize", ONE_SITE);
+        std::fs::remove_dir_all(ws.path().join("packages")).unwrap();
+        let why = scan(ws.path()).unwrap_err();
+        assert!(
+            matches!(run(ws.path(), false), Verdict::CannotVouch(ref w) if *w == why),
+            "{why}"
+        );
+    }
+
+    #[test]
+    fn list_uses_the_expression_line_not_the_enclosing_item() {
+        // The construction sits on the third line of a four-line item: the site must say 4.
+        let ws = Workspace::new(
+            "10usize",
+            "fn w()\n    -> Result<(), Error>\n{\n    Error::from(\"multi-line item\")\n}\n",
+        );
+        let s = scan(ws.path()).unwrap();
+        assert_eq!(s.sites.len(), 1);
+        assert_eq!(s.sites[0].line, 4);
+        assert_eq!(s.sites[0].source, "Error::from(\"multi-line item\")");
+    }
+
+    /// The `--list` CLI path (stdout of the binary) is pinned through `cli`, so a mutation that
+    /// empties or drops the list — invisible to every `scan()`-level test — goes red here.
+    /// A mistyped flag is a usage error, never a silent no-op: `--against-gi` must not leave
+    /// the monotonicity gate off, and a stray positional (e.g. the program name, were `main()`
+    /// ever to stop skipping argv[0]) must not be swallowed.
+    #[test]
+    fn cli_rejects_unknown_arguments_with_exit_two_and_no_output() {
+        let ws = Workspace::new("10usize", SIX_SITES);
+        for bad in ["--lst", "--against-gi", "--root", "/some/path", "list"] {
+            let mut out: Vec<u8> = Vec::new();
+            let code = cli(&[bad.to_string()], ws.path(), false, &mut out);
+            assert_eq!(code, 2, "{bad:?}");
+            assert!(out.is_empty(), "{bad:?}: {}", String::from_utf8_lossy(&out));
+        }
+        // The value of `--root` is consumed, not treated as a flag.
+        let mut out: Vec<u8> = Vec::new();
+        assert_eq!(
+            cli(
+                &[
+                    "--root".to_string(),
+                    ws.path().to_string_lossy().into_owned()
+                ],
+                std::path::Path::new("/"),
+                false,
+                &mut out
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn cli_list_prints_every_site_then_the_summary_with_exit_zero() {
+        let ws = Workspace::new("10usize", SIX_SITES);
+        let mut out: Vec<u8> = Vec::new();
+        let code = cli(&["--list".to_string()], ws.path(), false, &mut out);
+        assert_eq!(code, 0);
+        let text = String::from_utf8(out).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        // 6 site lines + 8 summary lines, sites first and in `(path, line)` order.
+        assert_eq!(lines.len(), 6 + 8, "{text}");
+        let sites: Vec<&str> = lines.iter().take(6).copied().collect();
+        assert!(
+            sites
+                .iter()
+                .all(|l| l.starts_with("packages/p/src/lib.rs:")),
+            "{sites:?}"
+        );
+        assert_eq!(sites[0], "packages/p/src/lib.rs:2  error_message  fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }");
+        assert_eq!(sites[5], "packages/p/src/lib.rs:7  new_format     fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!(\"{s}\"))) }");
+        assert_eq!(lines[6], "error_from     1");
+        assert_eq!(lines[12], "total          6  (ceiling 10)");
+        assert_eq!(lines[13], "staging-budget: clean");
+        assert!(text.ends_with("staging-budget: clean\n"));
+    }
+
+    #[test]
+    fn cli_without_list_prints_only_the_summary_and_list_is_printed_even_when_over_budget() {
+        let ws = Workspace::new("10usize", SIX_SITES);
+        let mut out: Vec<u8> = Vec::new();
+        assert_eq!(cli(&[], ws.path(), false, &mut out), 0);
+        let text = String::from_utf8(out).unwrap();
+        assert_eq!(
+            text.lines().count(),
+            8,
+            "no site lines without --list:\n{text}"
+        );
+        // Over budget: the list is still printed (that is when it is wanted), exit 1.
+        let ws = Workspace::new("2usize", SIX_SITES);
+        let mut out: Vec<u8> = Vec::new();
+        assert_eq!(cli(&["--list".to_string()], ws.path(), false, &mut out), 1);
+        let text = String::from_utf8(out).unwrap();
+        assert_eq!(
+            text.lines().count(),
+            6,
+            "sites only, no summary on failure:\n{text}"
+        );
+        // `--root` selects the repository; a missing value is a usage error.
+        let ws = Workspace::new("10usize", SIX_SITES);
+        let mut out: Vec<u8> = Vec::new();
+        assert_eq!(cli(&["--root".to_string()], ws.path(), false, &mut out), 2);
+        let mut out: Vec<u8> = Vec::new();
+        assert_eq!(
+            cli(
+                &[
+                    "--root".to_string(),
+                    ws.path().to_string_lossy().into_owned(),
+                    "--list".to_string()
+                ],
+                std::path::Path::new("/"),
+                false,
+                &mut out
+            ),
+            0
+        );
+        assert_eq!(String::from_utf8(out).unwrap().lines().count(), 6 + 8);
     }
 }

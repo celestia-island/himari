@@ -7,5 +7,6 @@ description = "Counts uncatalogued error producers in the workspace by AST (gate
 
 [dependencies]
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
-proc-macro2 = "1"
+# `span-locations` lets `--list` report the 1-based line of every site.
+proc-macro2 = { version = "1", features = ["span-locations"] }
 walkdir = "2"
