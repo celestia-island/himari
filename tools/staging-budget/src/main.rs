@@ -1,18 +1,39 @@
 //! Uncatalogued-error budget gate.
 //!
-//! Counts *constructions* of staging errors in production code — `Error::from(..)`,
-//! `Error::Message(..)`, `FrontError::plain("…")`, `FrontError::plain(format!(..))`,
-//! `FrontError::new(l, c, "…")`, `FrontError::new(l, c, format!(..))` — by walking the Rust
-//! AST with `syn`, so the verdict never depends on line layout, whitespace, comments, or
-//! whether a pattern *looks* like a construction. Items compiled only under test are skipped —
-//! any item kind gated by a `#[cfg(test)]`-entailing predicate, plus `#[test]` functions (the
-//! only item kind rustc accepts `#[test]` on); the catalogue itself
-//! (`i18n.rs`) is excluded. This is the *string-staging* budget: a catalogued variant built
-//! with a string payload (e.g. `Error::SyntaxError(text)`) is NOT staging and is not counted.
+//! Counts *constructions* of staging errors in production code by walking the Rust AST with
+//! `syn`, so the verdict never depends on line layout, whitespace, comments, or whether a
+//! pattern *looks* like a construction. Items compiled only under test are skipped — any item
+//! kind gated by a `#[cfg(test)]`-entailing predicate, plus `#[test]` functions (the only item
+//! kind rustc accepts `#[test]` on); the catalogue itself (`i18n.rs`) is excluded. This is the
+//! *string-staging* budget: a catalogued variant built with a string payload (e.g.
+//! `Error::SyntaxError(text)`) is NOT staging and is not counted.
+//!
+//! Twelve buckets in three families:
+//!
+//! 1. **Literal shapes** (everywhere): `Error::from(..)`, `Error::Message(..)`,
+//!    `FrontError::plain("…")`, `plain(format!(..))`, `FrontError::new(l, c, "…")`,
+//!    `new(l, c, format!(..))`.
+//! 2. **Value-laundering funnels** (everywhere): `plain(x)` / `new(l, c, x)` where `x` is a
+//!    runtime value that is not itself a catalogued construction — a String variable smuggled
+//!    into the catalogue through the `impl Into<Error>` funnel; and the function-reference
+//!    form `map_err(FrontError::plain)`, where the mapped error's type is unknown but `plain`
+//!    is the string-keeping constructor. A catalogued payload (`plain(Error::SyntaxError(..))`)
+//!    stays exempt; nesting `from`/`Message` inside it does not.
+//! 3. **String-staging shapes** (only under `packages/himari/src/` — the crate that owns the
+//!    catalogue must be string-free in its error paths): `ok_or`/`ok_or_else` whose argument
+//!    is a `format!`/string literal/`to_string`-of-a-literal; `map_err` whose closure produces
+//!    such a value or calls `.to_string()` on the incoming error; and `Err(format!(..))` /
+//!    `Err("…".into())`. Front-end crates (`latex`/`matlab`) build catalogued payloads, and
+//!    peripheral CLIs own their plain diagnostic strings, so they are outside this family by
+//!    design; anything they launder *into* the catalogue is still caught by family 2.
 //!
 //! The ceiling lives in `tools/staging-budget/src/ceiling.txt` and may only go down.
-//! `--against-git` reads that file from `HEAD` and fails if the working-tree ceiling is higher;
-//! an unreadable ceiling or an unavailable baseline is a hard error, never a silent downgrade.
+//! `--against-git` reads that file from the merge base with the remote trunk (`origin/HEAD`,
+//! else `origin/master`) and fails if the working-tree ceiling is higher — a PR branch's HEAD
+//! is the branch tip, so comparing against HEAD could never catch "sites and ceiling raised in
+//! the same commit". A clone with no remote trunk falls back to HEAD; when a remote trunk
+//! exists but its merge base cannot be resolved, that is a hard error, never a silent
+//! downgrade. An unreadable ceiling is likewise a hard error.
 //!
 //! `--list` additionally prints every counted site as `<path>:<line>  <bucket>  <source line>`
 //! (path relative to the repository root, line 1-based) before the usual summary, so a batch
@@ -25,7 +46,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use syn::spanned::Spanned;
-use syn::{visit::Visit, Expr, ExprPath, Item};
+use syn::visit::Visit;
+use syn::{Expr, ExprPath, Item, Stmt};
 
 fn parse_ceiling(text: &str) -> Option<usize> {
     let t = text.trim().trim_end_matches(';').trim();
@@ -51,6 +73,19 @@ pub struct Counts {
     pub plain_format: usize,
     pub new_str: usize,
     pub new_format: usize,
+    /// `plain(x)` / `new(l, c, x)` with a runtime-value payload that is not itself a
+    /// catalogued construction.
+    pub plain_value: usize,
+    pub new_value: usize,
+    /// `FrontError::plain` passed as a function reference (`map_err(FrontError::plain)`).
+    pub fn_ref: usize,
+    /// String-staging shapes, counted only in the catalogue crate: `ok_or`/`ok_or_else`
+    /// with a statically-string argument.
+    pub ok_stage: usize,
+    /// `map_err` closure producing a staged string or `.to_string()`-ing the incoming error.
+    pub map_err_stage: usize,
+    /// `Err(format!(..))` / `Err("…".into())` and friends.
+    pub err_stage: usize,
 }
 
 impl Counts {
@@ -61,6 +96,12 @@ impl Counts {
             + self.plain_format
             + self.new_str
             + self.new_format
+            + self.plain_value
+            + self.new_value
+            + self.fn_ref
+            + self.ok_stage
+            + self.map_err_stage
+            + self.err_stage
     }
 }
 
@@ -72,7 +113,8 @@ pub struct Site {
     /// 1-based line of the construction's first token.
     pub line: usize,
     /// Bucket name, identical to the summary's label: `error_from`, `error_message`,
-    /// `plain_str`, `plain_format`, `new_str`, `new_format`.
+    /// `plain_str`, `plain_format`, `new_str`, `new_format`, `plain_value`, `new_value`,
+    /// `fn_ref`, `ok_stage`, `map_err_stage`, `err_stage`.
     pub bucket: &'static str,
     /// The source line, trimmed (the construction may span several lines; this is the first).
     pub source: String,
@@ -82,7 +124,7 @@ impl Site {
     /// `<path>:<line>  <bucket>  <source>` — the exact `--list` line.
     pub fn render(&self) -> String {
         format!(
-            "{}:{}  {:<13}  {}",
+            "{}:{}  {:<14}  {}",
             self.path, self.line, self.bucket, self.source
         )
     }
@@ -199,6 +241,108 @@ fn is_format_macro(e: &Expr) -> bool {
     matches!(e, Expr::Macro(m) if m.mac.path.is_ident("format"))
 }
 
+/// The last two path segments: `(qualifier, name)` — `Error::from`, `FrontError::plain`,
+/// `Self::Message`, `String::from`.
+fn tail_two(path: &syn::Path) -> Option<(&syn::Ident, &syn::Ident)> {
+    let segs = &path.segments;
+    if segs.len() < 2 {
+        return None;
+    }
+    Some((&segs[segs.len() - 2].ident, &segs[segs.len() - 1].ident))
+}
+
+/// Is this path `Error::<name>` / `Self::<name>` for a variant-like name? `from`/`Message`
+/// are excluded on purpose: they are the staging constructors themselves, so a call to them
+/// is staging (counted at its own site), not a catalogued payload.
+fn catalogued_path(path: &syn::Path) -> bool {
+    tail_two(path)
+        .is_some_and(|(q, n)| (*q == "Error" || *q == "Self") && n != "from" && n != "Message")
+}
+
+/// Is this expression an expression that BUILDS a catalogued value — any spelling of a
+/// variant construction: a call (`Error::ComplexEvalResult { .. }`-style tuple/unit-call),
+/// a unit-variant path used as a value (`Error::EmptyFormula`), or a struct-variant literal
+/// (`Error::ReservedName { .. }`). This is what keeps the front-end idioms
+/// `FrontError::plain(himari::Error::SyntaxError(..))` and
+/// `FrontError::new(l, c, Error::NestingTooDeep { .. })` out of the value buckets.
+fn catalogued_construction(e: &Expr) -> bool {
+    match e {
+        Expr::Call(call) => matches!(&*call.func, Expr::Path(p) if catalogued_path(&p.path)),
+        Expr::Path(p) => catalogued_path(&p.path),
+        Expr::Struct(s) => catalogued_path(&s.path),
+        _ => false,
+    }
+}
+
+/// The trailing expression of a block, if any — syn 2 models it as the last statement
+/// WITHOUT a semicolon (`Stmt::Expr(e, None)`); a semicolon discards the value.
+fn block_tail(block: &syn::Block) -> Option<&Expr> {
+    match block.stmts.last() {
+        Some(Stmt::Expr(e, None)) => Some(e),
+        _ => None,
+    }
+}
+
+/// Look through parentheses — `(format!(..)).into()` must read as the shape it wraps.
+fn unparen(e: &Expr) -> &Expr {
+    match e {
+        Expr::Paren(p) => unparen(&p.expr),
+        other => other,
+    }
+}
+
+/// A statically-string expression: a string literal, a `format!`, a string literal or
+/// `format!` carried through `.to_string()` / `.to_owned()` / `.into()`, `String::from(<lit>)`.
+/// A method call on an OPAQUE receiver is deliberately absent: `.into()` on a variable could
+/// target a typed error, and the gate refuses to guess.
+fn static_string_shape(expr: &Expr) -> bool {
+    let e = unparen(expr);
+    match e {
+        _ if lit_str(e) || is_format_macro(e) => true,
+        Expr::MethodCall(m) => {
+            let name = m.method.to_string();
+            let recv = unparen(&m.receiver);
+            (name == "to_string" || name == "to_owned" || name == "into")
+                && (lit_str(recv) || is_format_macro(recv))
+        }
+        Expr::Call(call) => {
+            matches!(
+                &*call.func,
+                Expr::Path(ExprPath { path, .. })
+                    if tail_two(path).is_some_and(|(q, n)| *q == "String" && *n == "from")
+            ) && call.args.first().is_some_and(lit_str)
+        }
+        Expr::Block(b) => block_tail(&b.block).is_some_and(static_string_shape),
+        _ => false,
+    }
+}
+
+/// The closure-body rule for the `map_err` bucket: everything [`static_string_shape`] accepts,
+/// plus `.to_string()` on ANY receiver — the payload of `Display` is a string by definition,
+/// so `map_err(|error| error.to_string())` is string staging wherever it appears.
+fn string_stage_body(expr: &Expr) -> bool {
+    let e = unparen(expr);
+    match e {
+        _ if static_string_shape(e) => true,
+        Expr::MethodCall(m) => m.method == "to_string",
+        Expr::Block(b) => block_tail(&b.block).is_some_and(string_stage_body),
+        _ => false,
+    }
+}
+
+/// True only for the single-segment `Err` path (`Err(x)` parses as a call to it).
+fn is_err_path(path: &syn::Path) -> bool {
+    path.segments.len() == 1 && path.segments[0].ident == "Err"
+}
+
+/// The tail expression of a closure body, looking through a trailing block.
+fn closure_tail(body: &Expr) -> Option<&Expr> {
+    match body {
+        Expr::Block(b) => block_tail(&b.block),
+        other => Some(other),
+    }
+}
+
 #[derive(Default)]
 struct Counter {
     c: Counts,
@@ -207,6 +351,10 @@ struct Counter {
     /// Repository-relative path and the file's lines, for `Site` reporting.
     path: String,
     lines: Vec<String>,
+    /// Family-3 buckets (`ok_stage` / `map_err_stage` / `err_stage`) are counted only inside
+    /// the catalogue crate (`packages/himari/src/…`); front-end and peripheral crates build
+    /// catalogued payloads or own plain CLI diagnostics.
+    catalogue_crate: bool,
 }
 
 impl Counter {
@@ -224,6 +372,20 @@ impl Counter {
             bucket,
             source,
         });
+    }
+
+    /// Family 2, function-reference form: `FrontError::plain` passed as a VALUE argument to
+    /// another call (`map_err(FrontError::plain)`). The mapped error's type is unknown here,
+    /// but `plain` is the string-keeping constructor, so this is the laundering moment for
+    /// every `Result<_, String>` producer upstream. A typed error goes through `From`
+    /// instead (`map_err(FrontError::from)`), which is not counted.
+    fn classify_fn_ref(&mut self, a: &Expr) {
+        if let Expr::Path(ExprPath { path, .. }) = a {
+            if tail_two(path).is_some_and(|(q, n)| *q == "FrontError" && *n == "plain") {
+                self.c.fn_ref += 1;
+                self.record("fn_ref", a);
+            }
+        }
     }
 }
 
@@ -277,6 +439,7 @@ fn count_file(file: &syn::File, path: &str, src: &str) -> (Counts, Vec<Site>) {
     let mut c = Counter {
         path: path.to_string(),
         lines: src.lines().map(str::to_owned).collect(),
+        catalogue_crate: path.starts_with("packages/himari/src/"),
         ..Counter::default()
     };
     c.visit_file(file);
@@ -305,47 +468,119 @@ fn item_attrs(i: &Item) -> Option<&[syn::Attribute]> {
 
 impl Counter {
     fn classify(&mut self, e: &Expr) {
-        let Expr::Call(call) = e else { return };
-        let Expr::Path(ExprPath { path, .. }) = &*call.func else {
-            return;
-        };
-        let args = &call.args;
-        // Error::from(..)
-        if path_ends_with(path, "Error", "from") {
-            self.c.error_from += 1;
-            self.record("error_from", e);
-            return;
-        }
-        // Error::Message(..) — a *call* is a construction by definition; patterns are not Exprs.
-        if path_ends_with(path, "Error", "Message") {
-            self.c.error_message += 1;
-            self.record("error_message", e);
-            return;
-        }
-        // FrontError::plain("…") / plain(format!(..))
-        if path_ends_with(path, "FrontError", "plain") {
-            if let Some(a) = args.first() {
-                if lit_str(a) {
-                    self.c.plain_str += 1;
-                    self.record("plain_str", e);
-                } else if is_format_macro(a) {
-                    self.c.plain_format += 1;
-                    self.record("plain_format", e);
+        match e {
+            Expr::Call(call) => {
+                for a in &call.args {
+                    self.classify_fn_ref(a);
+                }
+                let Expr::Path(ExprPath { path, .. }) = &*call.func else {
+                    return;
+                };
+                let args = &call.args;
+                // Error::from(..) — counted whatever the argument: a literal is staging
+                // directly, a runtime value equally so.
+                if path_ends_with(path, "Error", "from") {
+                    self.c.error_from += 1;
+                    self.record("error_from", e);
+                    return;
+                }
+                // Error::Message(..) — a *call* is a construction by definition; patterns are
+                // not Exprs.
+                if path_ends_with(path, "Error", "Message") {
+                    self.c.error_message += 1;
+                    self.record("error_message", e);
+                    return;
+                }
+                // FrontError::plain("…" | format!(..) | <runtime value>)
+                if path_ends_with(path, "FrontError", "plain") {
+                    match args.first() {
+                        Some(a) if lit_str(a) => {
+                            self.c.plain_str += 1;
+                            self.record("plain_str", e);
+                        }
+                        Some(a) if is_format_macro(a) => {
+                            self.c.plain_format += 1;
+                            self.record("plain_format", e);
+                        }
+                        // The value funnel: a String smuggled into the catalogue through
+                        // `impl Into<Error>`. A catalogued payload is exempt — that is the
+                        // latex/matlab idiom — but `from`/`Message` nested inside are staging
+                        // themselves, so they do not exempt the outer call.
+                        Some(a) if !catalogued_construction(a) => {
+                            self.c.plain_value += 1;
+                            self.record("plain_value", e);
+                        }
+                        _ => {}
+                    }
+                    return;
+                }
+                // FrontError::new(line, col, "…" | format!(..) | <runtime value>)
+                if path_ends_with(path, "FrontError", "new") {
+                    if let Some(a) = args.iter().nth(2) {
+                        if lit_str(a) {
+                            self.c.new_str += 1;
+                            self.record("new_str", e);
+                        } else if is_format_macro(a) {
+                            self.c.new_format += 1;
+                            self.record("new_format", e);
+                        } else if !catalogued_construction(a) {
+                            self.c.new_value += 1;
+                            self.record("new_value", e);
+                        }
+                    }
+                    return;
+                }
+                // Err(<statically-string>) — catalogue crate only; outside it, plain CLI
+                // diagnostics own their strings by design.
+                if self.catalogue_crate && is_err_path(path) {
+                    if let Some(a) = args.first() {
+                        if static_string_shape(a) {
+                            self.c.err_stage += 1;
+                            self.record("err_stage", e);
+                        }
+                    }
                 }
             }
-            return;
-        }
-        // FrontError::new(line, col, "…" | format!(..))
-        if path_ends_with(path, "FrontError", "new") {
-            if let Some(a) = args.iter().nth(2) {
-                if lit_str(a) {
-                    self.c.new_str += 1;
-                    self.record("new_str", e);
-                } else if is_format_macro(a) {
-                    self.c.new_format += 1;
-                    self.record("new_format", e);
+            Expr::MethodCall(m) => {
+                for a in &m.args {
+                    self.classify_fn_ref(a);
+                }
+                if !self.catalogue_crate {
+                    return;
+                }
+                match m.method.to_string().as_str() {
+                    // ok_or(<string>) / ok_or_else(|| <string>) — the staged string becomes
+                    // the error value of the Result; a catalogued construction is exempt.
+                    "ok_or" | "ok_or_else" => {
+                        if let Some(a) = m.args.first() {
+                            let body = match a {
+                                Expr::Closure(c) => closure_tail(&c.body),
+                                other => Some(other),
+                            };
+                            if let Some(body) = body {
+                                if static_string_shape(body) {
+                                    self.c.ok_stage += 1;
+                                    self.record("ok_stage", e);
+                                }
+                            }
+                        }
+                    }
+                    // map_err(<closure producing a staged string, or to_string-ing the
+                    // incoming error>) — the laundering moment for a Result<_, String>.
+                    "map_err" => {
+                        if let Some(Expr::Closure(c)) = m.args.first() {
+                            if let Some(body) = closure_tail(&c.body) {
+                                if string_stage_body(body) {
+                                    self.c.map_err_stage += 1;
+                                    self.record("map_err_stage", e);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
+            _ => {}
         }
     }
 }
@@ -384,21 +619,74 @@ fn rust_files(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-fn baseline_ceiling(repo: &Path) -> Result<usize, String> {
+const CEILING_PATH: &str = "tools/staging-budget/src/ceiling.txt";
+
+fn git_text(repo: &Path, args: &[&str]) -> Result<String, String> {
     let out = Command::new("git")
-        .args(["show", "HEAD:tools/staging-budget/src/ceiling.txt"])
+        .args(args)
         .current_dir(repo)
         .output()
         .map_err(|e| format!("cannot run git: {e}"))?;
     if !out.status.success() {
         return Err(format!(
-            "git show HEAD:tools/staging-budget/src/ceiling.txt failed ({}); a shallow/absent HEAD cannot vouch for monotonicity",
+            "git {} failed ({})",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+/// The revision whose ceiling vouches for monotonicity: the merge base with the remote trunk
+/// when the clone advertises one, else `HEAD`. A PR branch's HEAD is the branch tip, so
+/// comparing the working tree against HEAD could never catch "sites and ceiling raised in the
+/// same commit" — the merge base is the fork point the ceiling must not have regressed from.
+/// When a remote trunk exists but its merge base cannot be resolved (unrelated histories),
+/// that is an error: the gate does not silently fall back to a weaker baseline.
+fn baseline_revision(repo: &Path) -> Result<String, String> {
+    let remote = git_text(repo, &["symbolic-ref", "-q", "refs/remotes/origin/HEAD"])
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            git_text(
+                repo,
+                &["rev-parse", "--verify", "-q", "refs/remotes/origin/master"],
+            )
+            .ok()
+            .map(|_| "refs/remotes/origin/master".to_string())
+        });
+    let Some(remote) = remote else {
+        // No remote trunk advertised: fall back to HEAD (the pre-merge-base behaviour). A
+        // branch built on top of this clone's own history is still checked against it.
+        return Ok("HEAD".to_string());
+    };
+    let base = git_text(repo, &["merge-base", remote.as_str(), "HEAD"])?
+        .trim()
+        .to_string();
+    if base.is_empty() {
+        return Err(format!("merge-base with {remote} resolved to nothing"));
+    }
+    Ok(base)
+}
+
+fn baseline_ceiling(repo: &Path) -> Result<usize, String> {
+    let rev = baseline_revision(repo)?;
+    let spec = format!("{rev}:{CEILING_PATH}");
+    let out = Command::new("git")
+        .args(["show", &spec])
+        .current_dir(repo)
+        .output()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "git show {spec} failed ({}); an unavailable baseline cannot vouch for monotonicity",
             String::from_utf8_lossy(&out.stderr).trim()
         ));
     }
     let text = String::from_utf8_lossy(&out.stdout).to_string();
     parse_ceiling(&text)
-        .ok_or_else(|| format!("HEAD's ceiling.txt is not a usize literal: {text:?}"))
+        .ok_or_else(|| format!("the baseline ceiling at {spec} is not a usize literal: {text:?}"))
 }
 
 /// The gate's verdict, with the process exit code it maps to.
@@ -473,6 +761,12 @@ pub fn scan(repo: &Path) -> Result<Scan, String> {
         out.counts.plain_format += c.plain_format;
         out.counts.new_str += c.new_str;
         out.counts.new_format += c.new_format;
+        out.counts.plain_value += c.plain_value;
+        out.counts.new_value += c.new_value;
+        out.counts.fn_ref += c.fn_ref;
+        out.counts.ok_stage += c.ok_stage;
+        out.counts.map_err_stage += c.map_err_stage;
+        out.counts.err_stage += c.err_stage;
         out.sites.extend(sites);
     }
     if !parse_errors.is_empty() {
@@ -578,13 +872,19 @@ fn cli(args: &[String], cwd: &Path, ci_env: bool, out: &mut dyn std::io::Write) 
     }
     match run(&repo, against_git) {
         Verdict::Clean { counts: c, ceiling } => {
-            let _ = writeln!(out, "error_from     {}", c.error_from);
-            let _ = writeln!(out, "error_message  {}", c.error_message);
-            let _ = writeln!(out, "plain_str      {}", c.plain_str);
-            let _ = writeln!(out, "plain_format   {}", c.plain_format);
-            let _ = writeln!(out, "new_str        {}", c.new_str);
-            let _ = writeln!(out, "new_format     {}", c.new_format);
-            let _ = writeln!(out, "total          {}  (ceiling {ceiling})", c.total());
+            let _ = writeln!(out, "error_from      {}", c.error_from);
+            let _ = writeln!(out, "error_message   {}", c.error_message);
+            let _ = writeln!(out, "plain_str       {}", c.plain_str);
+            let _ = writeln!(out, "plain_format    {}", c.plain_format);
+            let _ = writeln!(out, "new_str         {}", c.new_str);
+            let _ = writeln!(out, "new_format      {}", c.new_format);
+            let _ = writeln!(out, "plain_value     {}", c.plain_value);
+            let _ = writeln!(out, "new_value       {}", c.new_value);
+            let _ = writeln!(out, "fn_ref          {}", c.fn_ref);
+            let _ = writeln!(out, "ok_stage        {}", c.ok_stage);
+            let _ = writeln!(out, "map_err_stage   {}", c.map_err_stage);
+            let _ = writeln!(out, "err_stage       {}", c.err_stage);
+            let _ = writeln!(out, "total           {}  (ceiling {ceiling})", c.total());
             let _ = writeln!(out, "staging-budget: clean");
             0
         }
@@ -655,17 +955,12 @@ fn h() -> Result<(), FrontError> { Err(FrontError::plain("x")) }
             panic!("{v:?}")
         };
         assert_eq!(ceiling, 10);
-        assert_eq!(
-            (
-                counts.error_from,
-                counts.error_message,
-                counts.plain_str,
-                counts.plain_format,
-                counts.new_str,
-                counts.new_format
-            ),
-            (1, 1, 1, 0, 0, 0)
-        );
+        assert_eq!(counts.error_from, 1);
+        assert_eq!(counts.error_message, 1);
+        assert_eq!(counts.plain_str, 1);
+        assert_eq!(counts.plain_format, 0);
+        assert_eq!(counts.new_str, 0);
+        assert_eq!(counts.new_format, 0);
         assert_eq!(counts.total(), 3);
     }
 
@@ -777,19 +1072,20 @@ fn f2() -> Result<(), FrontError> { Err(FrontError::new(0, 0, format!("x"))) }"#
             panic!("{v:?}")
         };
         // Each bucket receives exactly one from a DIFFERENT file/tree — a dropped or misrouted
-        // `+=` anywhere in the aggregation shows up as a wrong tuple.
-        assert_eq!(
-            (
-                counts.error_from,
-                counts.error_message,
-                counts.plain_str,
-                counts.plain_format,
-                counts.new_str,
-                counts.new_format
-            ),
-            (1, 1, 1, 1, 1, 1),
-            "{counts:?}"
-        );
+        // `+=` anywhere in the aggregation shows up in the field asserts.
+        assert_eq!(counts.error_from, 1);
+        assert_eq!(counts.error_message, 1);
+        assert_eq!(counts.plain_str, 1);
+        assert_eq!(counts.plain_format, 1);
+        assert_eq!(counts.new_str, 1);
+        assert_eq!(counts.new_format, 1);
+        assert_eq!(counts.plain_value, 0);
+        assert_eq!(counts.new_value, 0);
+        assert_eq!(counts.fn_ref, 0);
+        assert_eq!(counts.ok_stage, 0);
+        assert_eq!(counts.map_err_stage, 0);
+        assert_eq!(counts.err_stage, 0);
+        assert_eq!(counts.total(), 6);
     }
 
     #[test]
@@ -822,11 +1118,9 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
         let Verdict::Clean { counts, .. } = run(ws.path(), false) else {
             panic!()
         };
-        assert_eq!(
-            (counts.error_message, counts.plain_str),
-            (1, 1),
-            "{counts:?}"
-        );
+        assert_eq!(counts.error_message, 1, "{counts:?}");
+        assert_eq!(counts.plain_str, 1, "{counts:?}");
+        assert_eq!(counts.total(), 2, "{counts:?}");
     }
 
     #[test]
@@ -901,6 +1195,132 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
         assert_eq!(run(ws.path(), true).exit_code(), 0);
     }
 
+    /// `git` with output captured (the plain `git` helper asserts success but discards it).
+    fn git_out(args: &[&str], cwd: &Path) -> String {
+        let out = std::process::Command::new("git")
+            .args([
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+            ])
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .expect("git must be available");
+        assert!(out.status.success(), "git {args:?} failed");
+        String::from_utf8_lossy(&out.stdout).to_string()
+    }
+
+    /// Advertises a remote trunk the way a real clone does: `refs/remotes/origin/master`
+    /// pointing at the given committish, plus the `origin/HEAD` symbolic ref.
+    fn seed_remote_trunk(repo: &Path, commit: &str) {
+        git(&["update-ref", "refs/remotes/origin/master", commit], repo);
+        git(
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/master",
+            ],
+            repo,
+        );
+    }
+
+    #[test]
+    fn against_git_compares_the_merge_base_not_the_branch_tip() {
+        // The hole this closes: sites and a raised ceiling in the SAME commit pass while the
+        // baseline is HEAD (the branch tip already contains both). Against the merge base the
+        // raise must be caught, because the fork point still has the old ceiling.
+        let ws = Workspace::new("5usize", ONE_SITE);
+        git(&["init", "-q"], ws.path());
+        git(&["add", "-A"], ws.path());
+        git(&["commit", "-q", "--no-verify", "-m", "seed"], ws.path());
+        let seed = git_out(&["rev-parse", "HEAD"], ws.path());
+        seed_remote_trunk(ws.path(), seed.trim());
+        // Equal to the fork point → clean.
+        assert_eq!(run(ws.path(), true).exit_code(), 0);
+        // Now commit sites AND a raised ceiling together: the old HEAD-based comparison saw
+        // ceiling == HEAD ceiling and stayed green; the merge base must go red.
+        std::fs::write(
+            ws.path().join("tools/staging-budget/src/ceiling.txt"),
+            "6usize",
+        )
+        .unwrap();
+        std::fs::write(
+            ws.path().join("packages/p/src/lib.rs"),
+            format!("{ONE_SITE}\nfn g() -> Result<(), Error> {{ Err(Error::from(\"y\")) }}"),
+        )
+        .unwrap();
+        git(&["add", "-A"], ws.path());
+        git(&["commit", "-q", "--no-verify", "-m", "raise"], ws.path());
+        let v = run(ws.path(), true);
+        assert_eq!(v.exit_code(), 1, "{v:?}");
+        assert!(
+            matches!(v, Verdict::OverBudget(ref w) if w.contains("raised 5 -> 6")),
+            "{v:?}"
+        );
+        // Lowering below the fork point's ceiling is still fine (monotone down).
+        std::fs::write(
+            ws.path().join("tools/staging-budget/src/ceiling.txt"),
+            "4usize",
+        )
+        .unwrap();
+        std::fs::write(ws.path().join("packages/p/src/lib.rs"), ONE_SITE).unwrap();
+        git(&["add", "-A"], ws.path());
+        git(&["commit", "-q", "--no-verify", "-m", "lower"], ws.path());
+        assert_eq!(run(ws.path(), true).exit_code(), 0);
+    }
+
+    #[test]
+    fn a_remote_trunk_without_a_merge_base_is_a_hard_error() {
+        // Unrelated histories: the merge base does not exist. The gate must refuse to vouch
+        // (exit 2) rather than silently falling back to the weaker HEAD baseline.
+        let ws = Workspace::new("10usize", ONE_SITE);
+        git(&["init", "-q"], ws.path());
+        git(&["add", "-A"], ws.path());
+        git(&["commit", "-q", "--no-verify", "-m", "seed"], ws.path());
+        seed_remote_trunk(ws.path(), "HEAD");
+        // Replace master with an UNRELATED commit (same tree, no parent).
+        let tree = git_out(&["rev-parse", "HEAD^{tree}"], ws.path());
+        let orphan = git_out(&["commit-tree", tree.trim(), "-m", "orphan"], ws.path());
+        git(
+            &["update-ref", "refs/heads/master", orphan.trim()],
+            ws.path(),
+        );
+        let v = run(ws.path(), true);
+        assert_eq!(v.exit_code(), 2, "{v:?}");
+        assert!(
+            matches!(v, Verdict::CannotVouch(ref w) if w.contains("baseline is unavailable") && w.contains("merge-base")),
+            "{v:?}"
+        );
+    }
+
+    #[test]
+    fn a_clone_without_a_remote_trunk_falls_back_to_head() {
+        // No refs/remotes/* at all: the merge-base resolution has nothing to work with, so the
+        // pre-merge-base behaviour (compare against HEAD) is the documented fallback.
+        let ws = Workspace::new("10usize", ONE_SITE);
+        git(&["init", "-q"], ws.path());
+        git(&["add", "-A"], ws.path());
+        git(&["commit", "-q", "--no-verify", "-m", "seed"], ws.path());
+        // Equal → clean.
+        assert_eq!(run(ws.path(), true).exit_code(), 0);
+        // Raised → exit 1.
+        std::fs::write(
+            ws.path().join("tools/staging-budget/src/ceiling.txt"),
+            "11usize",
+        )
+        .unwrap();
+        let v = run(ws.path(), true);
+        assert_eq!(v.exit_code(), 1, "{v:?}");
+        assert!(
+            matches!(v, Verdict::OverBudget(ref w) if w.contains("raised 10 -> 11")),
+            "{v:?}"
+        );
+    }
+
     #[test]
     fn a_workspace_with_only_a_ceiling_and_no_production_trees_cannot_vouch() {
         // Has `tools/staging-budget/` (so the ceiling is readable) but NO packages/ and no Rust
@@ -918,116 +1338,187 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
         );
     }
 
-    /// Parse `src` and return the six bucket counts as a tuple in printing order.
-    fn counts(src: &str) -> (usize, usize, usize, usize, usize, usize) {
+    /// Parse `src` as a file OUTSIDE the catalogue crate and return its bucket counts.
+    fn counts(src: &str) -> Counts {
         let file = syn::parse_file(src).expect("test source must parse");
-        let (c, _) = count_file(&file, "pkg/src/lib.rs", src);
-        (
-            c.error_from,
-            c.error_message,
-            c.plain_str,
-            c.plain_format,
-            c.new_str,
-            c.new_format,
-        )
+        count_file(&file, "pkg/src/lib.rs", src).0
+    }
+
+    /// Parse `src` as if the file lived inside `packages/himari/src/` (family-3 scope).
+    fn himari_counts(src: &str) -> Counts {
+        let file = syn::parse_file(src).expect("test source must parse");
+        count_file(&file, "packages/himari/src/lib.rs", src).0
     }
 
     fn prod(src: &str) -> usize {
-        let (a, b, c, d, e, f) = counts(src);
-        a + b + c + d + e + f
+        counts(src).total()
     }
 
     const MESSAGE_CALL: &str = r#"fn f(x: String) -> Result<(), Error> { Err(Error::Message(x)) }"#;
 
     #[test]
     fn each_shape_lands_in_its_own_bucket() {
-        // The six buckets must be asserted INDIVIDUALLY: a `total()` that silently drops a
+        // Every bucket must be asserted INDIVIDUALLY: a `total()` that silently drops a
         // bucket would otherwise pass every sum-based test below.
-        assert_eq!(
-            counts(MESSAGE_CALL),
-            (0, 1, 0, 0, 0, 0),
-            "Error::Message(x)"
+        let c = counts(MESSAGE_CALL);
+        assert_eq!(c.error_message, 1, "Error::Message(x)");
+        assert_eq!(c.total(), 1);
+        let c = counts(r#"fn f() -> Result<(), Error> { Err(Error::from("x")) }"#);
+        assert_eq!(c.error_from, 1, "Error::from");
+        let c = counts(r#"fn f() -> Result<(), FrontError> { Err(FrontError::plain("x")) }"#);
+        assert_eq!(c.plain_str, 1, "plain literal");
+        let c =
+            counts(r#"fn f() -> Result<(), FrontError> { Err(FrontError::plain(format!("x"))) }"#);
+        assert_eq!(c.plain_format, 1, "plain format");
+        let c = counts(r#"fn f() -> Result<(), FrontError> { Err(FrontError::new(0, 0, "x")) }"#);
+        assert_eq!(c.new_str, 1, "new literal");
+        let c = counts(
+            r#"fn f() -> Result<(), FrontError> { Err(FrontError::new(0, 0, format!("x"))) }"#,
+        );
+        assert_eq!(c.new_format, 1, "new format");
+        // Family 2: the value funnels.
+        let c =
+            counts(r#"fn f(s: String) -> Result<(), FrontError> { Err(FrontError::plain(s)) }"#);
+        assert_eq!(c.plain_value, 1, "plain runtime value");
+        assert_eq!(c.total(), 1);
+        let c = counts(
+            r#"fn f(s: String) -> Result<(), FrontError> { Err(FrontError::new(1, 2, s)) }"#,
+        );
+        assert_eq!(c.new_value, 1, "new runtime value");
+        assert_eq!(c.total(), 1);
+        let c = counts(
+            r#"fn f(r: Result<(), String>) -> Result<(), FrontError> { r.map_err(FrontError::plain) }"#,
+        );
+        assert_eq!(c.fn_ref, 1, "plain as a function reference");
+        assert_eq!(c.total(), 1);
+        // A catalogued payload is NOT a value funnel (the front-end idiom) — in EVERY
+        // construction spelling: tuple-call, unit-variant path, struct-variant literal.
+        let c = counts(
+            r#"fn f() -> Result<(), FrontError> { Err(FrontError::plain(Error::SyntaxError("x".into()))) }"#,
+        );
+        assert_eq!(c.total(), 0, "catalogued tuple-call payload exempt: {c:?}");
+        let c = counts(
+            r#"fn f() -> Result<(), FrontError> { Err(FrontError::plain(Error::EmptyFormula)) }"#,
         );
         assert_eq!(
-            counts(r#"fn f() -> Result<(), Error> { Err(Error::from("x")) }"#),
-            (1, 0, 0, 0, 0, 0),
-            "Error::from"
+            c.total(),
+            0,
+            "catalogued unit-variant payload exempt: {c:?}"
+        );
+        let c = counts(
+            r#"fn f() -> Result<(), FrontError> {
+                Err(FrontError::new(1, 2, Error::ReservedName { name: "x".into(), kind: ReservedKind::Fn }))
+            }"#,
         );
         assert_eq!(
-            counts(r#"fn f() -> Result<(), FrontError> { Err(FrontError::plain("x")) }"#),
-            (0, 0, 1, 0, 0, 0),
-            "plain literal"
+            c.total(),
+            0,
+            "catalogued struct-variant payload exempt: {c:?}"
+        );
+        let c = counts(r#"fn f(e: Error) -> Result<(), FrontError> { Err(FrontError::plain(e)) }"#);
+        assert_eq!(
+            c.plain_value, 1,
+            "an opaque variable is still a funnel: {c:?}"
+        );
+        // Nesting from/Message inside the payload does not exempt it (and the inner call
+        // counts too — two staging constructions, two sites).
+        let c = counts(
+            r#"fn f(s: String) -> Result<(), FrontError> { Err(FrontError::plain(Error::from(s))) }"#,
+        );
+        assert_eq!(c.error_from, 1, "{c:?}");
+        assert_eq!(c.plain_value, 1, "{c:?}");
+        assert_eq!(c.total(), 2, "{c:?}");
+        // `FrontError::from` passed as a reference is the TYPED conversion and must not count.
+        let c = counts(
+            r#"fn f(r: Result<(), Error>) -> Result<(), FrontError> { r.map_err(FrontError::from) }"#,
+        );
+        assert_eq!(c.total(), 0, "{c:?}");
+        // Family 3 lives ONLY in the catalogue crate.
+        let inside = himari_counts(
+            r#"fn f(env: &std::collections::HashMap<String, f64>, n: &str) -> Result<f64, Error> {
+                env.get(n).copied().ok_or_else(|| format!("missing `{n}`"))
+            }"#,
         );
         assert_eq!(
-            counts(r#"fn f() -> Result<(), FrontError> { Err(FrontError::plain(format!("x"))) }"#),
-            (0, 0, 0, 1, 0, 0),
-            "plain format"
+            inside.ok_stage, 1,
+            "ok_or_else(format!) inside the crate: {inside:?}"
+        );
+        let outside = counts(
+            r#"fn f(env: &std::collections::HashMap<String, f64>, n: &str) -> Result<f64, String> {
+                env.get(n).copied().ok_or_else(|| format!("missing `{n}`"))
+            }"#,
+        );
+        assert_eq!(outside.ok_stage, 0, "family 3 is crate-scoped: {outside:?}");
+        let c = himari_counts(
+            r#"fn f(r: Result<(), String>) -> Result<(), Error> { r.map_err(|error| error.to_string()) }"#,
+        );
+        assert_eq!(c.map_err_stage, 1, "map_err(to_string): {c:?}");
+        let c = himari_counts(
+            r#"fn f(r: Result<(), String>) -> Result<(), Error> { r.map_err(|e| format!("{e}")) }"#,
+        );
+        assert_eq!(c.map_err_stage, 1, "map_err(format!): {c:?}");
+        let c = himari_counts(r#"fn f() -> Result<(), String> { Err("bad input".to_string()) }"#);
+        assert_eq!(c.err_stage, 1, "Err(literal.to_string()): {c:?}");
+        let c =
+            himari_counts(r#"fn f(d: &str) -> Result<(), Error> { Err((format!("{d}")).into()) }"#);
+        assert_eq!(c.err_stage, 1, "Err(format!.into()): {c:?}");
+        let c = himari_counts(
+            r#"fn f() -> Result<(), Error> { Err(Error::InvalidInput("bad".into())) }"#,
         );
         assert_eq!(
-            counts(r#"fn f() -> Result<(), FrontError> { Err(FrontError::new(0, 0, "x")) }"#),
-            (0, 0, 0, 0, 1, 0),
-            "new literal"
+            c.total(),
+            0,
+            "catalogued Err payloads are not staging: {c:?}"
         );
-        assert_eq!(
-            counts(
-                r#"fn f() -> Result<(), FrontError> { Err(FrontError::new(0, 0, format!("x"))) }"#
-            ),
-            (0, 0, 0, 0, 0, 1),
-            "new format"
-        );
-        // And `total()` must be the sum of exactly these six. Every bucket must be NON-ZERO in
-        // this probe, otherwise a `total()` that silently drops a zero bucket is undetectable
-        // (a two-shape probe here once let `+ self.new_format` be deleted with all tests green).
-        let all = counts(&format!(
-            "{MESSAGE_CALL}\n{}\n{}\n{}\n{}\n{}",
+        // And `total()` must be the sum of exactly these twelve. Every bucket must be NON-ZERO
+        // in this probe, otherwise a `total()` that silently drops a zero bucket is
+        // undetectable (a two-shape probe here once let `+ self.new_format` be deleted with
+        // all tests green).
+        let all = himari_counts(&format!(
+            "{MESSAGE_CALL}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
             r#"fn g() -> Result<(), Error> { Err(Error::from("x")) }"#,
             r#"fn h() -> Result<(), FrontError> { Err(FrontError::plain("x")) }"#,
             r#"fn i() -> Result<(), FrontError> { Err(FrontError::plain(format!("x"))) }"#,
             r#"fn j() -> Result<(), FrontError> { Err(FrontError::new(0, 0, "x")) }"#,
             r#"fn k() -> Result<(), FrontError> { Err(FrontError::new(0, 0, format!("x"))) }"#,
+            r#"fn l(s: String) -> Result<(), FrontError> { Err(FrontError::plain(s)) }"#,
+            r#"fn m(s: String) -> Result<(), FrontError> { Err(FrontError::new(0, 0, s)) }"#,
+            r#"fn n(r: Result<(), String>) -> Result<(), FrontError> { r.map_err(FrontError::plain) }"#,
+            r#"fn o(e: &str) -> Result<f64, Error> { x(e).ok_or_else(|| format!("no {e}")) }"#,
+            r#"fn p(r: Result<(), String>) -> Result<(), Error> { r.map_err(|e| e.to_string()) }"#,
+            r#"fn q() -> Result<(), Error> { Err((format!("x")).into()) }"#,
         ));
-        let c = Counts {
-            error_from: all.0,
-            error_message: all.1,
-            plain_str: all.2,
-            plain_format: all.3,
-            new_str: all.4,
-            new_format: all.5,
-        };
-        assert_eq!(
-            (
-                c.error_from,
-                c.error_message,
-                c.plain_str,
-                c.plain_format,
-                c.new_str,
-                c.new_format
-            ),
-            (1, 1, 1, 1, 1, 1)
-        );
-        assert_eq!(c.total(), 6);
+        assert_eq!(all.error_message, 1);
+        assert_eq!(all.error_from, 1);
+        assert_eq!(all.plain_str, 1);
+        assert_eq!(all.plain_format, 1);
+        assert_eq!(all.new_str, 1);
+        assert_eq!(all.new_format, 1);
+        assert_eq!(all.plain_value, 1);
+        assert_eq!(all.new_value, 1);
+        assert_eq!(all.fn_ref, 1);
+        assert_eq!(all.ok_stage, 1);
+        assert_eq!(all.map_err_stage, 1);
+        assert_eq!(all.err_stage, 1);
+        assert_eq!(all.total(), 12);
         // The `Error::` / `FrontError::` qualifier in `path_ends_with` is load-bearing: a
         // `Foo::Message(..)` / `Bar::from(..)` / `Baz::plain(..)` on an unrelated type must
         // not be counted.
         assert_eq!(
             prod(r#"fn q(x: String) -> Result<(), Foo> { Err(Foo::Message(x)) }"#),
-            0,
-            "unrelated Message"
+            0
         );
         assert_eq!(
             prod(r#"fn q() -> Result<(), Foo> { Err(Bar::from("x")) }"#),
-            0,
-            "unrelated from"
+            0
         );
         assert_eq!(
             prod(r#"fn q() -> Result<(), Baz> { Err(Baz::plain("x")) }"#),
-            0,
-            "unrelated plain"
+            0
         );
         assert_eq!(
             prod(r#"fn q() -> Result<(), Baz> { Err(Baz::new(0, 0, "x")) }"#),
-            0,
-            "unrelated new"
+            0
         );
         // `Self::X` inside an impl of the right type IS the staging funnel.
         assert_eq!(
@@ -1398,12 +1889,12 @@ mod t { fn g() -> Result<(), Error> { Err(Error::from("test only")) } }
         assert_eq!(
             rendered,
             vec![
-                "packages/p/src/lib.rs:2  error_message  fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }",
-                "packages/p/src/lib.rs:3  error_from     fn b() -> Result<(), Error> { Err(Error::from(\"x\")) }",
-                "packages/p/src/lib.rs:4  plain_str      fn c() -> Result<(), FrontError> { Err(FrontError::plain(\"x\")) }",
-                "packages/p/src/lib.rs:5  plain_format   fn d(s: &str) -> Result<(), FrontError> { Err(FrontError::plain(format!(\"{s}\"))) }",
-                "packages/p/src/lib.rs:6  new_str        fn e() -> Result<(), FrontError> { Err(FrontError::new(1, 2, \"x\")) }",
-                "packages/p/src/lib.rs:7  new_format     fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!(\"{s}\"))) }",
+                "packages/p/src/lib.rs:2  error_message   fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }",
+                "packages/p/src/lib.rs:3  error_from      fn b() -> Result<(), Error> { Err(Error::from(\"x\")) }",
+                "packages/p/src/lib.rs:4  plain_str       fn c() -> Result<(), FrontError> { Err(FrontError::plain(\"x\")) }",
+                "packages/p/src/lib.rs:5  plain_format    fn d(s: &str) -> Result<(), FrontError> { Err(FrontError::plain(format!(\"{s}\"))) }",
+                "packages/p/src/lib.rs:6  new_str         fn e() -> Result<(), FrontError> { Err(FrontError::new(1, 2, \"x\")) }",
+                "packages/p/src/lib.rs:7  new_format      fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!(\"{s}\"))) }",
             ]
         );
     }
@@ -1522,8 +2013,8 @@ mod t { fn g() -> Result<(), Error> { Err(Error::from("test only")) } }
         assert_eq!(code, 0);
         let text = String::from_utf8(out).unwrap();
         let lines: Vec<&str> = text.lines().collect();
-        // 6 site lines + 8 summary lines, sites first and in `(path, line)` order.
-        assert_eq!(lines.len(), 6 + 8, "{text}");
+        // 6 site lines + 14 summary lines, sites first and in `(path, line)` order.
+        assert_eq!(lines.len(), 6 + 14, "{text}");
         let sites: Vec<&str> = lines.iter().take(6).copied().collect();
         assert!(
             sites
@@ -1531,11 +2022,11 @@ mod t { fn g() -> Result<(), Error> { Err(Error::from("test only")) } }
                 .all(|l| l.starts_with("packages/p/src/lib.rs:")),
             "{sites:?}"
         );
-        assert_eq!(sites[0], "packages/p/src/lib.rs:2  error_message  fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }");
-        assert_eq!(sites[5], "packages/p/src/lib.rs:7  new_format     fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!(\"{s}\"))) }");
-        assert_eq!(lines[6], "error_from     1");
-        assert_eq!(lines[12], "total          6  (ceiling 10)");
-        assert_eq!(lines[13], "staging-budget: clean");
+        assert_eq!(sites[0], "packages/p/src/lib.rs:2  error_message   fn a(x: String) -> Result<(), Error> { Err(Error::Message(x)) }");
+        assert_eq!(sites[5], "packages/p/src/lib.rs:7  new_format      fn f(s: &str) -> Result<(), FrontError> { Err(FrontError::new(1, 2, format!(\"{s}\"))) }");
+        assert_eq!(lines[6], "error_from      1");
+        assert_eq!(lines[18], "total           6  (ceiling 10)");
+        assert_eq!(lines[19], "staging-budget: clean");
         assert!(text.ends_with("staging-budget: clean\n"));
     }
 
@@ -1547,7 +2038,7 @@ mod t { fn g() -> Result<(), Error> { Err(Error::from("test only")) } }
         let text = String::from_utf8(out).unwrap();
         assert_eq!(
             text.lines().count(),
-            8,
+            14,
             "no site lines without --list:\n{text}"
         );
         // Over budget: the list is still printed (that is when it is wanted), exit 1.
@@ -1578,6 +2069,6 @@ mod t { fn g() -> Result<(), Error> { Err(Error::from("test only")) } }
             ),
             0
         );
-        assert_eq!(String::from_utf8(out).unwrap().lines().count(), 6 + 8);
+        assert_eq!(String::from_utf8(out).unwrap().lines().count(), 6 + 14);
     }
 }

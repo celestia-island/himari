@@ -162,6 +162,25 @@ impl FrontError {
     }
 }
 
+impl From<Error> for FrontError {
+    // Exactly `plain` with an already-typed argument: the variant is kept, so `code()` still
+    // identifies the failure. This is the spelling `map_err`/`?` must use for already-catalogued
+    // errors (`map_err(FrontError::from)`), so the staging-budget gate can tell a typed
+    // conversion from the string-keeping funnel (`FrontError::plain` as a function reference,
+    // which the gate counts). `plain`'s body is inlined here on purpose: a delegation would be
+    // `Self::plain(<runtime value>)`, the exact funnel shape the gate exists to catch.
+    fn from(code: Error) -> Self {
+        let msg = code.render(i18n::Locale::En);
+        Self {
+            line: 0,
+            col: 0,
+            msg,
+            code: Box::new(code),
+            args: Vec::new(),
+        }
+    }
+}
+
 // ---------------------------------------------------------------- declarations
 
 /// Formula symbol declaration. **The dimension must be given explicitly** — this is where this
@@ -238,8 +257,8 @@ impl Dim {
                 return Err(Error::ExponentNotHalfInteger(format!("{p}/{q}")));
             }
             let scaled = prod / q as i64;
-            *out = i16::try_from(scaled).map_err(|_| {
-                format!("单位指数 {p}/{q} 超出量纲格范围（半格指数必须落在 i16 内）")
+            *out = i16::try_from(scaled).map_err(|_| Error::ExponentOutOfRange {
+                exponent: format!("{p}/{q}"),
             })?;
         }
         Ok(Dim(r))
@@ -427,10 +446,12 @@ fn parse_ratio(s: &str) -> Result<(i32, i32), Error> {
         Some((n, d)) => (n, d),
         None => (s.trim(), "1"),
     };
-    let n: i32 = n
-        .trim()
-        .parse()
-        .map_err(|_| format!("坏的单位指数 `{}`", s.trim()))?;
+    let n: i32 = n.trim().parse().map_err(|_| {
+        Error::MalformedUnit(
+            s.trim().to_string(),
+            "exponent numerator is not an integer".into(),
+        )
+    })?;
     let d: i32 = d.trim().parse().map_err(|_| {
         Error::MalformedUnit(
             s.trim().to_string(),
@@ -962,10 +983,10 @@ pub fn check_set_depth(set: &FormulaSet) -> Result<(), FrontError> {
     if set.items.is_empty() {
         return Err(FrontError::plain(Error::EmptyFormula));
     }
-    let runtime_shapes = runtime::shapes_of_set(set).map_err(FrontError::plain)?;
+    let runtime_shapes = runtime::shapes_of_set(set).map_err(FrontError::from)?;
     for item in &set.items {
-        check_depth(&item.expr).map_err(FrontError::plain)?;
-        check_calls_with_shapes(&item.expr, &runtime_shapes).map_err(FrontError::plain)?;
+        check_depth(&item.expr).map_err(FrontError::from)?;
+        check_calls_with_shapes(&item.expr, &runtime_shapes).map_err(FrontError::from)?;
     }
     Ok(())
 }
@@ -1369,7 +1390,7 @@ fn by_var_name(by: &Expr) -> String {
 /// so referencing `area` inside `vol = area * h` is legal, and dimensions propagate.
 pub fn dims_of_set(set: &FormulaSet) -> Result<HashMap<String, Dim>, Error> {
     let declared_dims = dims_of(&set.decls)?;
-    let runtime_shapes = runtime::shapes_of_set(set).map_err(|error| error.to_string())?;
+    let runtime_shapes = runtime::shapes_of_set(set)?;
     let mut dims = declared_dims.clone();
     // A formula may reuse a decl's name (a = F/m), but the result must honor the dimension already
     // declared for that name;
@@ -2131,7 +2152,9 @@ pub fn shape_check(e: &Expr) -> Result<(), Error> {
             Ok(())
         }
         Expr::MatPattern(p) => {
-            p.grid().ok_or("模式矩阵各行长度不一致")?;
+            p.grid().ok_or_else(|| {
+                Error::ShapeMismatch("pattern matrix rows have inconsistent lengths".into())
+            })?;
             Ok(())
         }
         _ => Ok(()),
@@ -2148,7 +2171,7 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
         // env, use env's value
         E::Var(n) if n == "j" && !env.contains_key("j") => Value::Scalar(C::I),
         E::Var(n) => Value::Scalar(C::real(
-            *env.get(n).ok_or_else(|| format!("求值时缺少变量 `{n}`"))?,
+            *env.get(n).ok_or_else(|| Error::UndeclaredSymbol(n.clone()))?,
         )),
         E::Neg(a) => match eval_value(a, env)? {
             Value::Scalar(c) => Value::Scalar(c.neg()),
@@ -2281,7 +2304,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             // strategy as det/trace, only one copy of the math)
             if name == "dot" || name == "norm" {
                 let expanded = expand_call(e).ok_or_else(|| {
-                    format!("`{name}` 需要具体矩阵字面量（形状编译期未知时无法展开）")
+                    Error::InvalidInput(format!(
+                        "`{name}` needs a concrete matrix literal (its shape is unknown at compile time)"
+                    ))
                 })?;
                 return eval_value(&expanded, env);
             }
@@ -2289,7 +2314,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             // then evaluate (no second solver implementation)
             if name == "solve" || name == "roots" || name == "poly_coeffs" {
                 let expanded = expand_call(e).ok_or_else(|| {
-                    "`solve` 的条件不满足（第二个参数必须是变量名，且方程对它线性）".to_string()
+                    Error::InvalidInput(
+                        "`solve` is not applicable here: the second argument must be a variable name and the equations must be linear in it".into(),
+                    )
                 })?;
                 let value = eval_value(&expanded, env)?;
                 if name == "roots" && !uses_complex(e) && value.is_complex() {
@@ -2332,7 +2359,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
                     // fixture — the two lanes must share the same implementation.
                     "inv" => {
                         let expanded = expand_matrix_call(e).ok_or_else(|| {
-                            "`inv` 只支持 1–3 阶方阵（更高阶请走数值库）".to_string()
+                            Error::InvalidInput(
+                                "`inv` supports only square matrices of order 1 to 3 (use a numeric library for larger orders)".into(),
+                            )
                         })?;
                         eval_value(&expanded, env)
                     }
@@ -2668,12 +2697,15 @@ pub fn check_calls_with_shapes(
                     }
                     Expr::Mat(_) => {
                         let vars = mat_var_names(&args[1]).ok_or_else(|| {
-                            "`solve([方程…], [未知数…])` 的第二个参数必须是变量名列表".to_string()
+                            Error::InvalidInput(
+                                "`solve` expects its second argument to be a list of variable names"
+                                    .into(),
+                            )
                         })?;
                         let eqs = flat_mat_items(&args[0]).ok_or_else(|| {
-                            "方程组形态：`solve` 的第一个参数必须是方程列表 \
-                             `[eq1, eq2, …]`（每条写成「式 = 0」）"
-                                .to_string()
+                            Error::InvalidInput(
+                                "`solve` expects its first argument to be a list of equations, each of the form `expr = 0`".into(),
+                            )
                         })?;
                         solve_system(&eqs, &vars)?;
                     }
@@ -2841,9 +2873,11 @@ fn c_bin(
         (Value::Scalar(x), Value::Scalar(y)) => Ok(Value::Scalar(f(x, y)?)),
         (Value::Matrix(ma), Value::Matrix(mb)) => {
             if ma.len() != mb.len() {
-                return Err(
-                    (format!("矩阵逐元素运算行数不一致：{} vs {}", ma.len(), mb.len())).into(),
-                );
+                return Err(Error::ShapeMismatch(format!(
+                    "element-wise rows disagree: {} vs {}",
+                    ma.len(),
+                    mb.len()
+                )));
             }
             let mut out = Vec::with_capacity(ma.len());
             for (ra, rb) in ma.iter().zip(mb.iter()) {
@@ -3274,9 +3308,10 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
             match name.as_str() {
                 "exp" | "ln" | "log" | "sin" | "cos" | "tan" | "sinh" | "cosh" | "tanh" => {
                     if !d.is_zero() {
-                        return Err(
-                            (format!("`{name}` 的参数必须无量纲，得到 {}", d.display())).into()
-                        );
+                        return Err(Error::InvalidInput(format!(
+                            "`{name}` arguments must be dimensionless, got {}",
+                            d.display()
+                        )));
                     }
                     Dim::ZERO
                 }
@@ -3425,7 +3460,9 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
         MatPattern(p) => {
             // A pattern matrix only constrains its **concrete** elements (ellipsis cells do not
             // participate).
-            let grid = p.grid().ok_or("模式矩阵各行长度不一致")?;
+            let grid = p.grid().ok_or_else(|| {
+                Error::ShapeMismatch("pattern matrix rows have inconsistent lengths".into())
+            })?;
             if grid.0 < 2 || grid.1 < 2 {
                 return Err(Error::InvalidInput(
                     "a pattern matrix must be at least 2×2, otherwise the ellipsis means nothing"
@@ -3459,7 +3496,7 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
             // differentiation is not in the first version)
             let dx = *dims
                 .get(by)
-                .ok_or_else(|| format!("微分变量 `{by}` 未声明量纲"))?;
+                .ok_or_else(|| Error::UndeclaredSymbol(by.clone()))?;
             du.div_dim(dx)
         }
         Grad(u) => dim_check(u, dims)?.div_dim(parse_unit("m")?), // Cartesian metric assumption
@@ -3495,11 +3532,12 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
             let du = dim_check(upper, dims)?;
             let dv = *dims
                 .get(var)
-                .ok_or_else(|| format!("积分变量 `{var}` 未声明量纲"))?;
+                .ok_or_else(|| Error::UndeclaredSymbol(var.clone()))?;
             if dl != du {
-                return Err(
-                    (format!("积分界限量纲不一致：{} vs {}", dl.display(), du.display())).into(),
-                );
+                return Err(Error::DimensionMismatch {
+                    left: dl.display().to_string(),
+                    right: du.display().to_string(),
+                });
             }
             let db = dim_check(body, dims)?;
             db.mul_dim(dv)
@@ -3507,7 +3545,7 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
         Indexed { name, indices } => {
             let d = *dims
                 .get(name)
-                .ok_or_else(|| format!("索引符号 `{name}` 未声明量纲"))?;
+                .ok_or_else(|| Error::UndeclaredSymbol(name.clone()))?;
             for i in indices {
                 if !dims.get(i).map(|x| x.is_zero()).unwrap_or(false) {
                     return Err(Error::InvalidInput(format!(
@@ -5218,8 +5256,8 @@ pub fn solve_system(eqs: &[Expr], vars: &[String]) -> Result<Expr, Error> {
 /// **dimensionally homogeneous** (all terms share a dimension ⇒ the coefficients lose one power of
 /// x's dimension per degree), and that is checked explicitly.
 pub fn poly_coeffs_vec(e: &Expr, var: &str) -> Result<Expr, Error> {
-    let coeffs = poly_coeffs(e, var).ok_or_else(|| {
-        format!("`poly_coeffs` 需要关于 `{var}` 的一元多项式：`{var}` 出现在函数/分母/非整数幂里时不适用")
+    let coeffs = poly_coeffs(e, var).ok_or_else(|| Error::NotPolynomial {
+        var: var.to_string(),
     })?;
     let n = coeffs.len();
     let mut trimmed = coeffs;
@@ -5264,8 +5302,8 @@ pub fn poly_coeffs_vec(e: &Expr, var: &str) -> Result<Expr, Error> {
 /// The two roots are computed with the stable q/a and c/q, and the return order still corresponds
 /// to the original (−b−√D), (−b+√D).
 pub fn solve_poly(e: &Expr, var: &str) -> Result<Expr, Error> {
-    let coeffs = poly_coeffs(e, var).ok_or_else(|| {
-        format!("`roots` 需要关于 `{var}` 的多项式：`{var}` 出现在函数/分母/非整数幂里时不适用")
+    let coeffs = poly_coeffs(e, var).ok_or_else(|| Error::NotPolynomial {
+        var: var.to_string(),
     })?;
     // Drop high-degree zero coefficients: `x^3 - x^3 + x - 1` is still a degree-1 equation
     let mut c = coeffs;
@@ -6667,7 +6705,9 @@ fn try_bidiag(p: &MatPattern) -> Option<MatrixKind> {
 }
 
 pub fn recognize_pattern(p: &MatPattern) -> Result<MatrixKind, Error> {
-    let (m, n) = p.grid().ok_or("模式矩阵各行长度不一致")?;
+    let (m, n) = p.grid().ok_or_else(|| {
+        Error::ShapeMismatch("pattern matrix rows have inconsistent lengths".into())
+    })?;
 
     let el = |i: usize, j: usize| -> Option<&Expr> {
         match p.rows.get(i)?.get(j)? {
@@ -8173,8 +8213,12 @@ mod tests {
             div(num(1.0), var("x")),
         ] {
             let err = poly_coeffs_vec(&bad, "x").unwrap_err();
-            let text = err.to_string();
-            assert!(text.contains("一元多项式"), "{text}");
+            assert_eq!(err.code(), "not-polynomial", "{err}");
+            assert!(
+                err.render(i18n::Locale::En)
+                    .contains("univariate polynomial"),
+                "{err}"
+            );
         }
         assert!(poly_coeffs_vec(&mul(num(0.0), var("x")), "x").is_err());
     }
@@ -8231,8 +8275,12 @@ mod tests {
             pow(var("x"), num(-1.0)),
         ] {
             let err = solve_poly(&bad, "x").unwrap_err();
-            let text = err.to_string();
-            assert!(text.contains("多项式"), "{text}");
+            assert_eq!(err.code(), "not-polynomial", "{err}");
+            assert!(
+                err.render(i18n::Locale::En)
+                    .contains("univariate polynomial"),
+                "{err}"
+            );
         }
         // The equation has no x
         let err = solve_poly(&add(var("a"), var("b")), "x").unwrap_err();
@@ -9951,5 +9999,171 @@ mod tests {
         assert_eq!(code.matches("let __t0 = a + b;").count(), 1, "{code}");
         // 1 definition + 3 uses
         assert_eq!(code.matches("__t0").count(), 4, "{code}");
+    }
+
+    // ---------------- retired string-staging sites (the staging-budget H-10 batch) ----------------
+    // Every laundering shape this batch retired must ALSO be pinned here: reverting the typed
+    // construction back to a staged string has to go red in this file, not only at the gate
+    // (the gate is the last line of defence, not the only one).
+
+    #[test]
+    fn a_missing_eval_variable_is_undeclared_symbol() {
+        let err = eval(&var("x"), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "undeclared-symbol", "{err}");
+        assert!(err.render(crate::i18n::Locale::En).contains("`x`"), "{err}");
+    }
+
+    #[test]
+    fn a_jagged_pattern_matrix_is_a_shape_mismatch_in_every_lane() {
+        let p = pat(vec![vec![el(num(1.0)), el(num(2.0))], vec![el(num(3.0))]]);
+        let err = recognize_pattern(&p).unwrap_err();
+        assert_eq!(err.code(), "shape-mismatch", "{err}");
+        let err = dim_check(&Expr::MatPattern(p), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "shape-mismatch", "{err}");
+    }
+
+    #[test]
+    fn the_unit_exponent_grid_range_and_numerator_are_typed() {
+        // The numerator must be an integer.
+        let err = parse_ratio("3/x").unwrap_err();
+        assert_eq!(err.code(), "malformed-unit", "{err}");
+        // An exact p/q that does not fit the i16 half-integer grid.
+        let err = parse_unit("s")
+            .unwrap()
+            .scale_ratio(2_000_000_000, 2)
+            .unwrap_err();
+        assert_eq!(err.code(), "exponent-out-of-range", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En)
+                .contains("dimension grid range"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn each_dim_lane_symbol_lookup_is_undeclared_symbol() {
+        let mut dims = HashMap::new();
+        dims.insert("u".to_string(), parse_unit("Pa").unwrap());
+        dims.insert("t".to_string(), Dim::ZERO);
+        // ∂: the differentiation variable must be declared.
+        let err = dim_check(&Expr::Deriv(Box::new(var("u")), "nope".into()), &dims).unwrap_err();
+        assert_eq!(err.code(), "undeclared-symbol", "{err}");
+        // ∫: the integration variable must be declared.
+        let err = dim_check(
+            &Expr::Integral {
+                var: "nope".into(),
+                lower: Box::new(var("t")),
+                upper: Box::new(var("t")),
+                body: Box::new(var("u")),
+            },
+            &dims,
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "undeclared-symbol", "{err}");
+        // a_{i,j}: the indexed symbol itself must be declared.
+        let err = dim_check(
+            &Expr::Indexed {
+                name: "nope".into(),
+                indices: vec!["i".into()],
+            },
+            &dims,
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "undeclared-symbol", "{err}");
+    }
+
+    #[test]
+    fn mismatched_integral_bounds_are_a_dimension_mismatch() {
+        let mut dims = HashMap::new();
+        dims.insert("u".to_string(), parse_unit("Pa").unwrap());
+        dims.insert("t".to_string(), Dim::ZERO);
+        let err = dim_check(
+            &Expr::Integral {
+                var: "u".into(),
+                lower: Box::new(var("t")),
+                upper: Box::new(var("u")),
+                body: Box::new(var("t")),
+            },
+            &dims,
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "dimension-mismatch", "{err}");
+    }
+
+    #[test]
+    fn a_dimensional_argument_to_a_transcendental_is_rejected() {
+        let mut dims = HashMap::new();
+        dims.insert("u".to_string(), parse_unit("Pa").unwrap());
+        let err = dim_check(&Expr::Call("sin".into(), vec![var("u")]), &dims).unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En)
+                .contains("must be dimensionless"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn elementwise_matrix_rows_must_agree() {
+        let a = Expr::Mat(vec![vec![num(1.0), num(2.0)]]);
+        let b = Expr::Mat(vec![vec![num(3.0)], vec![num(4.0)]]);
+        let err = eval_value(&add(a, b), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "shape-mismatch", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En)
+                .contains("rows disagree"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_solve_and_inv_guards_are_typed_rejections() {
+        // `solve` with a non-variable second argument.
+        let eqs = Expr::Mat(vec![vec![add(var("x"), num(-1.0))]]);
+        let junk = Expr::Mat(vec![vec![num(1.0)]]);
+        let err = eval_value(
+            &Expr::Call("solve".into(), vec![eqs.clone(), junk]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En)
+                .contains("second argument"),
+            "{err}"
+        );
+        // `solve` whose equations are not linear in the unknown.
+        let nonlin = Expr::Mat(vec![vec![Expr::Call("sin".into(), vec![var("x")])]]);
+        let unknowns = Expr::Mat(vec![vec![var("x")]]);
+        let err = eval_value(
+            &Expr::Call("solve".into(), vec![nonlin, unknowns.clone()]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En).contains("linear"),
+            "{err}"
+        );
+        // `solve` whose first argument is not a list of equations.
+        let err = eval_value(
+            &Expr::Call("solve".into(), vec![var("x"), unknowns.clone()]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        let big = Expr::Mat(vec![
+            vec![num(1.0), num(0.0), num(0.0), num(0.0)],
+            vec![num(0.0), num(1.0), num(0.0), num(0.0)],
+            vec![num(0.0), num(0.0), num(1.0), num(0.0)],
+            vec![num(0.0), num(0.0), num(0.0), num(1.0)],
+        ]);
+        let err = eval_value(&Expr::Call("inv".into(), vec![big]), &HashMap::new()).unwrap_err();
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En).contains("order 1 to 3"),
+            "{err}"
+        );
+        let _ = eqs;
     }
 }

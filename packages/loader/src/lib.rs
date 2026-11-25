@@ -81,13 +81,13 @@ fn dialect_directive(src: &str) -> Result<Option<&'static str>, String> {
             continue;
         };
         let Some(value) = kv.trim_start_matches([':', '=']).split_whitespace().next() else {
-            return Err("`%! dialect:` 后面要跟 latex 或 matex".to_string());
+            return Err("`%! dialect:` must be followed by `latex` or `matex`".to_string());
         };
         return match value.to_ascii_lowercase().as_str() {
             "latex" | "tex" => Ok(Some("latex")),
             "matex" | "matlab" => Ok(Some("matex")),
             other => Err(format!(
-                "未知方言 `{other}`：只支持 latex / matex（写成 `%! dialect: latex`）"
+                "unknown dialect `{other}`: only `latex` / `matex` are supported (write `%! dialect: latex`)"
             )),
         };
     }
@@ -100,7 +100,11 @@ pub fn parse_source_typed(
     src: &str,
     origin: &str,
 ) -> Result<himari::FormulaSet, himari::FrontError> {
-    match dialect_directive(src).map_err(himari::FrontError::plain)? {
+    // The directive strings are plain diagnostics, so they enter the catalogue as the typed
+    // `SyntaxError` payload (never laundered through `plain` into a `Message`).
+    match dialect_directive(src)
+        .map_err(|e| himari::FrontError::plain(himari::Error::SyntaxError(e)))?
+    {
         Some("latex") => himari_latex::parse(src).map_err(|mut e| {
             e.msg = e.render_with_source(origin, src);
             e
@@ -749,7 +753,7 @@ mod tests {
         // An unknown dialect name must be an error, with no silent fallback to AUTO
         let bad = format!("%! dialect: fortran\n{body}");
         let err = parse_source(&bad, "<t>").unwrap_err();
-        assert!(err.contains("未知方言"), "{err}");
+        assert!(err.contains("unknown dialect"), "{err}");
         // Directives are recognized only in the comment region: a `%!` in the body must not change
         // the dialect
         let inline = format!("{body}%! dialect: latex\n");
