@@ -367,7 +367,21 @@ mod tests {
     fn unknown_standard_names_the_known_ids() {
         let e = err(r#"{"standard":"ISO-9999","edition":2014}"#);
         assert_eq!(e.code, "unknown-standard");
-        assert!(e.message.contains("ISO-6506-1"), "{}", e.message);
+        assert_eq!(
+            e.standard, None,
+            "an unknown id must not be matched to a registry entry"
+        );
+        // Pin the whole sentence, not a substring: the template lives here independently of
+        // the producer, so a rewording on either side is caught. The id list is read from the
+        // registry so that registering a new standard does not break this test.
+        let known: Vec<&str> = STANDARDS.iter().map(|i| i.id.as_str()).collect();
+        assert_eq!(
+            e.message,
+            format!(
+                "unknown standard `ISO-9999`; known ids: {}",
+                known.join(", ")
+            )
+        );
     }
 
     #[test]
@@ -391,7 +405,14 @@ mod tests {
                 "indentation_diameter":0.004,"typography":true}"#,
         );
         assert_eq!(e.code, "unsupported-input");
-        assert!(e.message.contains("typography"), "{}", e.message);
+        // Pin the wrapper and the offending field name, not a bare substring; the rest of the
+        // sentence is serde's `expected …` list, which is not this crate's wording to pin.
+        assert!(
+            e.message
+                .starts_with("invalid request: unknown field `typography`"),
+            "{}",
+            e.message
+        );
     }
 
     #[test]

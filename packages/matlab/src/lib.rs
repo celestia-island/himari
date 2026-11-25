@@ -904,10 +904,11 @@ mod parser_thread_tests {
         });
         let err = finish_descent(run).expect_err("a panicking closure must not report Ok");
         assert_eq!(err.code.code(), "syntax-error", "{}", err.msg);
-        assert!(
-            err.msg.contains("simulated parser bug"),
-            "the panic text must be preserved for diagnosis: {}",
-            err.msg
-        );
+        // Pin the typed payload exactly: the panic text must be passed through verbatim for
+        // diagnosis.
+        match &*err.code {
+            himari::Error::SyntaxError(p) => assert_eq!(p, "simulated parser bug"),
+            other => panic!("expected SyntaxError, got {other:?}"),
+        }
     }
 }

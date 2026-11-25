@@ -509,9 +509,13 @@ fn factor(rows: &[Vec<f64>]) -> Result<Lu, NumericError> {
                 return Err(Error::NonFiniteValue("LU multiplier".into()));
             }
             values[i][k] = multiplier;
-            for j in k + 1..n {
-                values[i][j] -= multiplier * values[k][j];
-                if !values[i][j].is_finite() {
+            // Row i is updated in place while row k is only read: the two rows live in the same
+            // matrix, so split the borrow at i (k < i always holds here).
+            let (above, from_i) = values.split_at_mut(i);
+            let pivot_row = &above[k];
+            for (vij, vkj) in from_i[0].iter_mut().zip(pivot_row).skip(k + 1) {
+                *vij -= multiplier * *vkj;
+                if !vij.is_finite() {
                     return Err(Error::NonFiniteValue("LU elimination".into()));
                 }
             }
@@ -1275,8 +1279,10 @@ mod lu_correctness_probe {
             m.swap(k, p);
             for i in k + 1..n {
                 let f = m[i][k] / m[k][k];
-                for j in k..=n {
-                    m[i][j] -= f * m[k][j];
+                let (above, from_i) = m.split_at_mut(i);
+                let pivot_row = &above[k];
+                for (mij, mkj) in from_i[0].iter_mut().zip(pivot_row).skip(k) {
+                    *mij -= f * *mkj;
                 }
             }
         }
@@ -1394,8 +1400,10 @@ mod lu_randomized_crosscheck {
             m.swap(k, p);
             for i in k + 1..n {
                 let f = m[i][k] / m[k][k];
-                for j in k..=n {
-                    m[i][j] -= f * m[k][j];
+                let (above, from_i) = m.split_at_mut(i);
+                let pivot_row = &above[k];
+                for (mij, mkj) in from_i[0].iter_mut().zip(pivot_row).skip(k) {
+                    *mij -= f * *mkj;
                 }
             }
         }

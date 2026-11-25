@@ -459,7 +459,7 @@ fn quickfixes(src: &str) -> Vec<Fix> {
             _ => None,
         }
     };
-    let problem_name = typed.as_ref().and_then(&name_of);
+    let problem_name = typed.as_ref().and_then(name_of);
     let problem_code = typed.as_ref().map(|e| e.code.code());
 
     // A) Undeclared symbol: insert a declaration, or correct the spelling to the nearest
