@@ -331,6 +331,28 @@ impl Gpu {
             self.device
                 .begin_command_buffer(cmd, &vk::CommandBufferBeginInfo::default())
                 .map_err(|e| format!("begin: {e}"))?;
+            // The input buffer was written by the host before this submit: without an explicit
+            // HOST_WRITE -> COMPUTE_SHADER transition the shader is not guaranteed to see those
+            // bytes (host-coherent memory makes the write visible to the *host*, not to the
+            // device). Software implementations happen to work without this barrier, which is
+            // exactly why the harness states it explicitly.
+            let host_barrier = [vk::BufferMemoryBarrier::default()
+                .src_access_mask(vk::AccessFlags::HOST_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .buffer(in_buf)
+                .offset(0)
+                .size(vk::WHOLE_SIZE)];
+            self.device.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::HOST,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &host_barrier,
+                &[],
+            );
             self.device
                 .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, pipeline);
             self.device.cmd_bind_descriptor_sets(
