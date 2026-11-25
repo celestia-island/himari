@@ -936,19 +936,20 @@ WGSL 没有表达式体函数；主体必须是 `return expr;`，而生成器一
 | 运行时尺寸的线性方程组 | 运行时车道（`_matrix`/`_vector` 声明） | `solve(A,b)` 有检查（rcond + 残差）；返回 `Result` |
 | 量纲探索 | `himari-eval --groups` | Buckingham Π 组：不用手推雷诺数 |
 
-> 仍带中文的是*另一边*：生成代码的 doc comment、proc-macro 的 `FORMULA-ERROR` 诊断、以及 LSP 快速修复的标题——其中没有任何一项是错误目录的路径。目录的分期债为零，而上面的 staging-budget 门禁（十二个构造家族、上限对照 merge base 强制执行）正是把它守在零的原因。
+> 本仓库**产出**的一切——生成代码的 doc comment、`compile_error!` 的载荷、proc-macro 的 `FORMULA-ERROR` 诊断、WGSL 文件头——都是英文。仅剩的一个例外是 LSP 快速修复的*标题*（其诊断本身已本地化）；那是 UI 字符串，不是错误目录的路径。目录的分期债为零，而上面的 staging-budget 门禁（十二个构造家族，包含条件分支与产生字符串的 `map_err` 引用，上限对照 merge base 强制执行）正是把它守在零的原因。
 
 **带脱字符的错误**、**函数名拼错的建议**（`closest_func`，编辑距离 ≤ 2）、
 **拒绝不可见字符**、**深度/步数上限**——这些不是装饰，而是“敢让同事用这个”的门槛。
 
 ## 状态
 
-在 `dev` 分支上迭代（本地仓库，尚未推送到远程）。crates.io / docs.rs 徽章是预留的入口；
-**目前还没有发布任何东西**；正式 crates 上的 `publish = false` 是人工审查锁，而示例与 fixtures 也保持不可发布。
-内部依赖已经带着 `version = "0.1"` 与本地路径，一旦解除审查，必须按拓扑顺序发布：
+仓库在组织内（`celestia-island/himari`，单一 squash master）。crates.io / docs.rs 徽章是预留的入口。
+库 crates 是**可发布的**：`cargo publish -p himari --dry-run` 会打包、用自己的源码重建归档并走到上传那一步，且全部九个 crate 名在 crates.io 上仍然空闲。
+剩下的是上传本身——它需要 registry token，而且不可逆（yank 永远不会释放版本号），所以这是一个刻意的、独立的决定，而不是一个构建步骤。
+示例、fixtures 与工具类 crates 保持不可发布。
+内部依赖已经带着 `version = "0.1"` 与本地路径，因此上传必须按拓扑顺序进行：
 `himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`。
-`himari-check` 工具的发行另行决定。`himari-standards` 与 `himari-lean` 是工作区里新的 `publish = false` crates；
-它们分别依赖 `himari-macros` 与 `himari-loader`，所以不改变那个发布顺序。
+`himari-check` 工具的发行另行决定。`himari-standards` 与 `himari-lean` 依赖 `himari-macros` 与 `himari-loader`，所以不改变那个顺序。
 路线图与取舍的历史：`_reports/math-formula-20261122/`（REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER）。
 
 ## 验证
@@ -974,10 +975,10 @@ WGSL 的真 naga 编译，以及规范形式/sidecar/锁与生成代码的漂移
 - **模式矩阵只能走文件车道**：模式矩阵的构造子车道需要文件名与生成器，所以内联宏
   会带提示拒绝它们；没有任意模式矩阵的自动展开（那是研究级——内置形状之外的东西一律明确拒绝，
   并附上支持清单）。
-- **WGSL 数值验证仍待完成**：naga 证明语法与类型，不证明 kernel 在 GPU 上算出的数正确。这里尚未做过任何 GPU 运行。
+- **WGSL 数值验证已测量，但是在软件设备上**：`just gpu-verify` 把生成的 kernel 编译为 SPIR-V、经 Vulkan 执行并与 f64 CPU 通道比较结果（四个公式、十六个点、最坏相对误差 3.2e-7，Mesa lavapipe；替换任一算子都会使该通道失败）。那是执行真实 SPIR-V 的真实驱动路径，因此能抓住错误的索引、常量与优先级——但它**不**测量特定厂商的 f32 舍入、workgroup 调度或驱动 bug，也没有做过任何硬件 GPU 运行。
 - **Lean 验证尚未成功**：这台主机没有安装工具链，所以只跑了 stub-process 测试。没有声称 Lean 接受
   生成的证明义务。
-- **`publish = false` 是人工审查门**：crates 刻意不可发布，直到人工审查解除；见“状态”。
+- **发布是单独的、不可逆的决定**：库 crates 可发布且 dry-run 干净，但尚无任何上传；第一次上传就是版本号的不归点。见“状态”。
 - **`no_std` 范围**：`himari`、`himari-latex` 与 `himari-matlab` 是 `no_std + alloc`；loader/buildhelper/macros/check crates 则不是。
   生成的代码保留自己的 libm 车道，而复数公式不属于 `no_std` 车道。
 - **没有复数解析导数、没有复数或矩阵值公式的 f32 变体、没有矩阵值公式的解析导数。**

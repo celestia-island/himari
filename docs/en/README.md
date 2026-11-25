@@ -959,23 +959,29 @@ Also, tint (Chrome/Dawn's implementation) and naga differ on a few edge rules; t
 | runtime-sized linear systems | runtime lane (`_matrix`/`_vector` decls) | `solve(A,b)` is checked (rcond + residual); returns `Result` |
 | dimension exploration | `himari-eval --groups` | Buckingham Π groups: no hand-deriving the Reynolds number |
 
-> What still carries Chinese is the *other* side: doc comments of generated code, the proc-macro's
-> `FORMULA-ERROR` diagnostics, and the LSP's quick-fix titles — none of it is an error-catalogue
-> path. The catalogue's staging debt is zero, and the staging-budget gate above (twelve
-> construction families, ceiling enforced against the merge base) is what keeps it there.
+> Everything this repository **emits** — generated doc comments, `compile_error!` payloads, the
+> proc-macro's `FORMULA-ERROR` diagnostics, the WGSL header — is English. The one exception left is
+> the LSP's quick-fix *titles* (its diagnostics are localized); that is a UI string, not an
+> error-catalogue path. The catalogue's staging debt is zero, and the staging-budget gate above
+> (twelve construction families, conditionals and string-producing `map_err` references included,
+> ceiling enforced against the merge base) is what keeps it there.
 
 **Errors with carets**, **suggestions for misspelled function names** (`closest_func`, edit distance ≤ 2),
 **rejection of invisible characters**, **depth/step limits** — these are not garnish, they are the bar for "daring to let a colleague use this".
 
 ## Status
 
-The repository lives on the org (`celestia-island/himari`, single squashed master). The crates.io /
-docs.rs badges light up on first publish; `publish = false` on the formal crates is the manual-review
-lock, and examples and fixtures stay unpublishable too.
-Internal dependencies already carry `version = "0.1"` with local paths, and once the review is lifted they must be published in topological order:
+The repository lives on the org (`celestia-island/himari`, single squashed master). The library
+crates are **publishable**: `cargo publish -p himari --dry-run` packages, rebuilds the archive from
+its own sources and reaches the upload step, and all nine crate names are still free on crates.io.
+What remains is the upload itself — it needs a registry token and it is irreversible (a yank never
+frees a version number), so it is a deliberate, separate decision rather than a build step.
+Examples, fixtures and the tooling crates stay unpublishable.
+Internal dependencies already carry `version = "0.1"` with local paths, so the upload must follow
+the topological order:
 `himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-The `himari-check` tooling release is decided separately. `himari-standards` and `himari-lean` are new `publish = false` crates in the workspace;
-they depend on `himari-macros` and `himari-loader` respectively, so they do not change that publication order.
+The `himari-check` tooling release is decided separately. `himari-standards` and `himari-lean`
+depend on `himari-macros` and `himari-loader` respectively, so they do not change that order.
 History of the roadmap and trade-offs: `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## Verification
@@ -1001,10 +1007,10 @@ These are scope limits, not a to-do list that is nearly done. Say "not claimed" 
 - **Pattern matrices only via the file lane**: the constructor lane for pattern matrices needs a filename and a generator, so inline macros reject them
   with a pointer; there is no automatic expansion of arbitrary pattern matrices (research-grade — anything outside the built-in shapes is rejected explicitly
   with the supported list).
-- **WGSL numeric validation is still pending**: naga proves syntax and types, not that a kernel computes the right numbers on a GPU. No GPU run has been made here.
+- **WGSL numeric validation is measured, but on a software device**: `just gpu-verify` compiles the emitted kernel to SPIR-V, executes it through Vulkan and compares the results with the f64 CPU lane (four formulas, sixteen points, worst relative error 3.2e-7 on Mesa lavapipe; swapping one operator makes the lane fail). That is a real driver path executing real SPIR-V, so it catches wrong indexing, constants and precedence — it does **not** measure vendor-specific f32 rounding, workgroup scheduling or driver bugs, and no hardware-GPU run has been made.
 - **Lean verification has not succeeded**: no toolchain is installed on this host, so only the stub-process tests ran. There is no claim that Lean accepts the
   generated proof obligations.
-- **`publish = false` is a human-review gate**: the crates are deliberately unpublishable until a human review lifts it; see Status.
+- **Publishing is a separate, irreversible decision**: the library crates are publishable and dry-run clean, but nothing has been uploaded; the first upload is the point of no return for a version number. See Status.
 - **`no_std` scope**: `himari`, `himari-latex` and `himari-matlab` are `no_std + alloc`; the loader/buildhelper/macros/check crates are not.
   Generated code keeps its own libm lane, and complex formulas are not part of the `no_std` lane.
 - **No complex analytic derivatives, no f32 variant for complex or matrix-valued formulas, no analytic derivative for matrix-valued formulas.**
