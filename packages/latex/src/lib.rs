@@ -125,7 +125,11 @@ pub fn parse(src: &str) -> Result<himari::FormulaSet, FrontError> {
                     let path = p
                         .into_inner()
                         .next()
-                        .ok_or_else(|| FrontError::plain("use 缺路径"))?
+                        .ok_or_else(|| {
+                            FrontError::plain(himari::Error::SyntaxError(
+                                "`use` is missing its path".into(),
+                            ))
+                        })?
                         .as_str()
                         .to_string();
                     set.uses.push(path);
@@ -184,12 +188,16 @@ fn lower_decl(p: Pair<Rule>) -> Result<Decl, FrontError> {
     let mut it = p.into_inner();
     let name = it
         .next()
-        .ok_or_else(|| FrontError::plain("坏声明"))?
+        .ok_or_else(|| {
+            FrontError::plain(himari::Error::SyntaxError("malformed declaration".into()))
+        })?
         .as_str()
         .to_string();
     let quantity = it
         .next()
-        .ok_or_else(|| FrontError::plain("坏声明"))?
+        .ok_or_else(|| {
+            FrontError::plain(himari::Error::SyntaxError("malformed declaration".into()))
+        })?
         .as_str()
         .to_string();
     let unit = it.next().map(|u| {
@@ -218,10 +226,16 @@ fn lower_formula(p: Pair<Rule>) -> Result<himari::FormulaItem, FrontError> {
             let mut it = inner.into_inner();
             let lhs = it
                 .next()
-                .ok_or_else(|| FrontError::plain("坏赋值"))?
+                .ok_or_else(|| {
+                    FrontError::plain(himari::Error::SyntaxError("malformed assignment".into()))
+                })?
                 .as_str()
                 .to_string();
-            let rhs = lower_expr(it.next().ok_or_else(|| FrontError::plain("赋值缺右式"))?)?;
+            let rhs = lower_expr(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "assignment is missing its right-hand side".into(),
+                ))
+            })?)?;
             Ok(himari::FormulaItem {
                 name: Some(lhs),
                 expr: rhs,
@@ -233,16 +247,24 @@ fn lower_formula(p: Pair<Rule>) -> Result<himari::FormulaItem, FrontError> {
             expr: lower_expr(inner)?,
             line,
         }),
-        other => Err(FrontError::plain(format!("未预期公式规则 {other:?}"))),
+        other => Err(FrontError::plain(himari::Error::SyntaxError(format!(
+            "unexpected formula rule {other:?}"
+        )))),
     }
 }
 
 fn lower_expr(p: Pair<Rule>) -> Result<Expr, FrontError> {
     let mut it = p.into_inner();
-    let mut acc = lower_term(it.next().ok_or_else(|| FrontError::plain("空表达式"))?)?;
+    let mut acc = lower_term(it.next().ok_or_else(|| {
+        FrontError::plain(himari::Error::SyntaxError("empty expression".into()))
+    })?)?;
     while let Some(op) = it.next() {
         let minus = is_minus(op.as_str());
-        let rhs = lower_term(it.next().ok_or_else(|| FrontError::plain("加减缺右项"))?)?;
+        let rhs = lower_term(it.next().ok_or_else(|| {
+            FrontError::plain(himari::Error::SyntaxError(
+                "`+`/`-` is missing its right-hand term".into(),
+            ))
+        })?)?;
         acc = if minus { sub(acc, rhs) } else { add(acc, rhs) };
     }
     Ok(acc)
@@ -250,11 +272,18 @@ fn lower_expr(p: Pair<Rule>) -> Result<Expr, FrontError> {
 
 fn lower_term(p: Pair<Rule>) -> Result<Expr, FrontError> {
     let mut it = p.into_inner();
-    let mut acc = lower_unary(it.next().ok_or_else(|| FrontError::plain("空乘积"))?)?;
+    let mut acc =
+        lower_unary(it.next().ok_or_else(|| {
+            FrontError::plain(himari::Error::SyntaxError("empty product".into()))
+        })?)?;
     while let Some(next) = it.next() {
         match next.as_rule() {
             Rule::mul_op => {
-                let rhs = lower_unary(it.next().ok_or_else(|| FrontError::plain("乘号缺右项"))?)?;
+                let rhs = lower_unary(it.next().ok_or_else(|| {
+                    FrontError::plain(himari::Error::SyntaxError(
+                        "`*` is missing its right-hand factor".into(),
+                    ))
+                })?)?;
                 // Tell multiplication from division by the operator's **source text**: `/`,
                 // `\div` and `⁄` are division, everything else is multiplication.
                 // This must be decided before mul — treating `/` as multiplication is a silent
@@ -268,7 +297,11 @@ fn lower_term(p: Pair<Rule>) -> Result<Expr, FrontError> {
             // Juxtaposition is multiplication: unambiguous only when the identifier system is
             // LaTeX's "single-letter/single-command" one.
             Rule::unary => acc = mul(acc, lower_unary(next)?),
-            other => return Err(FrontError::plain(format!("未预期乘积规则 {other:?}"))),
+            other => {
+                return Err(FrontError::plain(himari::Error::SyntaxError(format!(
+                    "unexpected product rule {other:?}"
+                ))))
+            }
         }
     }
     Ok(acc)
@@ -324,7 +357,7 @@ fn lower_brace(p: Pair<Rule>) -> Result<Expr, FrontError> {
     let inner = p
         .into_inner()
         .next()
-        .ok_or_else(|| FrontError::plain("空花括号"))?;
+        .ok_or_else(|| FrontError::plain(himari::Error::SyntaxError("empty braces".into())))?;
     lower_expr(inner)
 }
 
@@ -332,10 +365,16 @@ fn lower_unary(p: Pair<Rule>) -> Result<Expr, FrontError> {
     let whole = p.as_str().to_string();
     let rules: Vec<Rule> = p.clone().into_inner().map(|x| x.as_rule()).collect();
     let mut it = p.into_inner();
-    let first = it.next().ok_or_else(|| FrontError::plain("空一元式"))?;
+    let first = it.next().ok_or_else(|| {
+        FrontError::plain(himari::Error::SyntaxError("empty unary expression".into()))
+    })?;
     match first.as_rule() {
         Rule::add_op => {
-            let pw = it.next().ok_or_else(|| FrontError::plain("负号缺操作数"))?;
+            let pw = it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "unary `-` is missing its operand".into(),
+                ))
+            })?;
             let inner = lower_power(pw)?;
             Ok(if is_minus(first.as_str()) {
                 neg(inner)
@@ -344,9 +383,9 @@ fn lower_unary(p: Pair<Rule>) -> Result<Expr, FrontError> {
             })
         }
         Rule::power => lower_power(first),
-        other => Err(FrontError::plain(format!(
-            "未预期一元规则 {other:?}（片段 {whole:?}，子规则 {rules:?}）"
-        ))),
+        other => Err(FrontError::plain(himari::Error::SyntaxError(format!(
+            "unexpected unary rule {other:?} (span {whole:?}, sub-rules {rules:?})"
+        )))),
     }
 }
 
@@ -354,7 +393,10 @@ fn lower_power(p: Pair<Rule>) -> Result<Expr, FrontError> {
     // `^` is a literal and produces no pair — the children are all atoms, count = 1 + number of
     // exponents.
     let mut it = p.into_inner();
-    let mut acc = lower_atom(it.next().ok_or_else(|| FrontError::plain("空幂式"))?)?;
+    let mut acc = lower_atom(
+        it.next()
+            .ok_or_else(|| FrontError::plain(himari::Error::SyntaxError("empty power".into())))?,
+    )?;
     let mut exps: Vec<Expr> = Vec::new();
     for rhs in it {
         exps.push(lower_atom(rhs)?);
@@ -378,33 +420,53 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
         Rule::atom => p
             .into_inner()
             .next()
-            .ok_or_else(|| FrontError::plain("空原子"))?,
+            .ok_or_else(|| FrontError::plain(himari::Error::SyntaxError("empty atom".into())))?,
         _ => p,
     };
     match pair.as_rule() {
         Rule::frac => {
             let mut it = pair.into_inner();
-            let a = lower_brace(it.next().ok_or_else(|| FrontError::plain("frac 缺分子"))?)?;
-            let b = lower_brace(it.next().ok_or_else(|| FrontError::plain("frac 缺分母"))?)?;
+            let a = lower_brace(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\frac` is missing its numerator".into(),
+                ))
+            })?)?;
+            let b = lower_brace(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\frac` is missing its denominator".into(),
+                ))
+            })?)?;
             Ok(himari::div(a, b))
         }
         Rule::mathrm => {
             let name = pair
                 .into_inner()
                 .next()
-                .ok_or_else(|| FrontError::plain("\\mathrm 缺名字"))?
+                .ok_or_else(|| {
+                    FrontError::plain(himari::Error::SyntaxError(
+                        "`\\mathrm` is missing its name".into(),
+                    ))
+                })?
                 .as_str()
                 .to_string();
             Ok(var(&name))
         }
         Rule::sqrt => {
             let mut it = pair.into_inner();
-            let a = lower_brace(it.next().ok_or_else(|| FrontError::plain("sqrt 缺参数"))?)?;
+            let a = lower_brace(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\sqrt` is missing its argument".into(),
+                ))
+            })?)?;
             Ok(Expr::Call("sqrt".into(), vec![a]))
         }
         Rule::func => {
             let mut it = pair.into_inner();
-            let head = it.next().ok_or_else(|| FrontError::plain("函数缺名字"))?;
+            let head = it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "function is missing its name".into(),
+                ))
+            })?;
             let name = match head.as_rule() {
                 // \name(...) → the name with the backslash stripped
                 Rule::func_name => head.as_str().trim_start_matches('\\').to_string(),
@@ -414,7 +476,11 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
                     let n = head
                         .into_inner()
                         .next()
-                        .ok_or_else(|| FrontError::plain("\\operatorname 缺名字"))?
+                        .ok_or_else(|| {
+                            FrontError::plain(himari::Error::SyntaxError(
+                                "`\\operatorname` is missing its name".into(),
+                            ))
+                        })?
                         .as_str()
                         .to_string();
                     if !matches!(
@@ -449,7 +515,9 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
                     n
                 }
                 other => {
-                    return Err(FrontError::plain(format!("函数头不合规：{other:?}")));
+                    return Err(FrontError::plain(himari::Error::SyntaxError(format!(
+                        "malformed function head: {other:?}"
+                    ))));
                 }
             };
             let mut args = Vec::new();
@@ -457,17 +525,27 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
                 args.push(lower_expr(a)?);
             }
             if args.is_empty() {
-                return Err(FrontError::plain(format!("函数 `{name}` 缺参数")));
+                return Err(FrontError::plain(himari::Error::SyntaxError(format!(
+                    "function `{name}` is missing its argument"
+                ))));
             }
             Ok(Expr::Call(name, args))
         }
         Rule::pfrac => {
             // \frac{\partial u}{\partial x} → Deriv(u, x)
             let mut it = pair.into_inner();
-            let u = lower_expr(it.next().ok_or_else(|| FrontError::plain("∂ 缺被微分式"))?)?;
+            let u = lower_expr(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`∂` is missing the expression to differentiate".into(),
+                ))
+            })?)?;
             let x = it
                 .next()
-                .ok_or_else(|| FrontError::plain("∂ 缺微分变量"))?
+                .ok_or_else(|| {
+                    FrontError::plain(himari::Error::SyntaxError(
+                        "`∂` is missing its variable".into(),
+                    ))
+                })?
                 .as_str()
                 .to_string();
             Ok(himari::deriv(u, x))
@@ -485,7 +563,11 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
             let operand = lower_power(
                 pairs
                     .get(idx)
-                    .ok_or_else(|| FrontError::plain("∇ 缺操作数"))?
+                    .ok_or_else(|| {
+                        FrontError::plain(himari::Error::SyntaxError(
+                            "`∇` is missing its operand".into(),
+                        ))
+                    })?
                     .clone(),
             )?;
             Ok(if pow2 {
@@ -498,19 +580,47 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
             let mut it = pair.into_inner();
             let var = it
                 .next()
-                .ok_or_else(|| FrontError::plain("\\sum 缺指标"))?
+                .ok_or_else(|| {
+                    FrontError::plain(himari::Error::SyntaxError(
+                        "`\\sum` is missing its index".into(),
+                    ))
+                })?
                 .as_str()
                 .to_string();
-            let lower = lower_expr(it.next().ok_or_else(|| FrontError::plain("\\sum 缺下界"))?)?;
-            let upper = lower_expr(it.next().ok_or_else(|| FrontError::plain("\\sum 缺上界"))?)?;
-            let body = lower_power(it.next().ok_or_else(|| FrontError::plain("\\sum 缺体"))?)?;
+            let lower = lower_expr(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\sum` is missing its lower bound".into(),
+                ))
+            })?)?;
+            let upper = lower_expr(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\sum` is missing its upper bound".into(),
+                ))
+            })?)?;
+            let body = lower_power(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\sum` is missing its body".into(),
+                ))
+            })?)?;
             Ok(himari::sum(var, lower, upper, body))
         }
         Rule::op_int => {
             let mut it = pair.into_inner();
-            let lower = lower_atom(it.next().ok_or_else(|| FrontError::plain("\\int 缺下界"))?)?;
-            let upper = lower_atom(it.next().ok_or_else(|| FrontError::plain("\\int 缺上界"))?)?;
-            let body = lower_power(it.next().ok_or_else(|| FrontError::plain("\\int 缺体"))?)?;
+            let lower = lower_atom(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\int` is missing its lower bound".into(),
+                ))
+            })?)?;
+            let upper = lower_atom(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\int` is missing its upper bound".into(),
+                ))
+            })?)?;
+            let body = lower_power(it.next().ok_or_else(|| {
+                FrontError::plain(himari::Error::SyntaxError(
+                    "`\\int` is missing its body".into(),
+                ))
+            })?)?;
             let var = it
                 .next()
                 .map(|p| p.as_str().to_string())
@@ -526,11 +636,9 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
                 let mut cells = Vec::new();
                 for cell in row.into_inner() {
                     // cell is the mcell **wrapper**: only the inner pair is the dots or expr
-                    let inner = cell
-                        .clone()
-                        .into_inner()
-                        .next()
-                        .ok_or_else(|| FrontError::plain("空矩阵格"))?;
+                    let inner = cell.clone().into_inner().next().ok_or_else(|| {
+                        FrontError::plain(himari::Error::SyntaxError("empty matrix cell".into()))
+                    })?;
                     cells.push(match inner.as_rule() {
                         Rule::dots => himari::PatternCell::Dots,
                         _ => himari::PatternCell::El(lower_expr(inner)?),
@@ -543,9 +651,11 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
         Rule::group | Rule::brace => lower_brace(pair),
         Rule::number => {
             let s = pair.as_str();
-            s.parse::<f64>()
-                .map(num)
-                .map_err(|_| FrontError::plain(format!("坏数字 `{s}`")))
+            s.parse::<f64>().map(num).map_err(|_| {
+                FrontError::plain(himari::Error::SyntaxError(format!(
+                    "malformed number `{s}`"
+                )))
+            })
         }
         Rule::symbol => {
             let mut name = String::new();
@@ -581,7 +691,9 @@ fn lower_atom(p: Pair<Rule>) -> Result<Expr, FrontError> {
             }
             Ok(var(name))
         }
-        other => Err(FrontError::plain(format!("未预期原子规则 {other:?}"))),
+        other => Err(FrontError::plain(himari::Error::SyntaxError(format!(
+            "unexpected atom rule {other:?}"
+        )))),
     }
 }
 
