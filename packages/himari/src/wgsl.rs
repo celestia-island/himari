@@ -229,9 +229,10 @@ const WGSL_KEYWORDS: &[&str] = &[
 fn wgsl_ident(name: &str) -> Result<String, crate::Error> {
     let id = crate::rust_ident(name);
     if WGSL_KEYWORDS.contains(&id.as_str()) {
-        return Err(crate::Error::from(format!(
-            "符号 `{name}` 与 WGSL 保留字 `{id}` 撞名：改个名字，或手写 shader"
-        )));
+        return Err(crate::Error::WgslReservedWord {
+            name: name.to_string(),
+            id,
+        });
     }
     Ok(id)
 }
@@ -295,8 +296,8 @@ pub fn validate_wgsl(text: &str) -> Result<(), crate::Error> {
             ')' | '}' | ']' => {
                 depth -= 1;
                 if depth < 0 {
-                    return Err(crate::Error::from(format!(
-                        "WGSL 结构错：第 {i} 字节处多了一个右括号"
+                    return Err(crate::Error::NotEmittable(format!(
+                        "WGSL structure error: an extra `)` at byte {i}"
                     )));
                 }
             }
@@ -304,14 +305,15 @@ pub fn validate_wgsl(text: &str) -> Result<(), crate::Error> {
         }
     }
     if depth != 0 {
-        return Err(crate::Error::from(format!(
-            "WGSL 结构错：括号未配平（差 {depth} 个）"
+        return Err(crate::Error::NotEmittable(format!(
+            "WGSL structure error: parentheses unbalanced by {depth}"
         )));
     }
     // 2) WGSL has no `^` / `**` operator (powers must be written as multiplication or pow)
     if text.contains('^') || text.contains("**") {
-        return Err(crate::Error::from(
-            "WGSL 结构错：出现了 `^` 或 `**`（WGSL 没有幂运算符）".to_string(),
+        return Err(crate::Error::NotEmittable(
+            "WGSL structure error: `^` or `**` encountered (WGSL has no power operator)"
+                .to_string(),
         ));
     }
     // 3) Every float literal must carry the `f` suffix.
@@ -346,9 +348,7 @@ pub fn validate_wgsl(text: &str) -> Result<(), crate::Error> {
             let is_float = bytes[start..end].contains(&'.') || end > i;
             if is_float && (end >= bytes.len() || bytes[end] != 'f') {
                 let lit: String = bytes[start..end].iter().collect();
-                return Err(crate::Error::from(format!(
-                    "WGSL 结构错：浮点字面量 `{lit}` 缺 `f` 后缀（会被推成 f64）"
-                )));
+                return Err(crate::Error::NotEmittable(format!("WGSL structure error: float literal `{lit}` lacks the `f` suffix (it would be inferred as f64)")));
             }
             i = end;
             continue;
@@ -359,8 +359,8 @@ pub fn validate_wgsl(text: &str) -> Result<(), crate::Error> {
     //    in the Rust lane)
     for bad in ["inff", "NaNf", "inf ", "-inff"] {
         if text.contains(bad) {
-            return Err(crate::Error::from(format!(
-                "WGSL 结构错：出现了非有限常量 `{bad}`"
+            return Err(crate::Error::NotEmittable(format!(
+                "WGSL structure error: non-finite constant `{bad}`"
             )));
         }
     }
@@ -372,8 +372,8 @@ pub fn validate_wgsl(text: &str) -> Result<(), crate::Error> {
         if t.starts_with("fn ") {
             fns += 1;
             if !t.contains("-> f32") {
-                return Err(crate::Error::from(format!(
-                    "WGSL 结构错：函数签名不是 `-> f32`：{t}"
+                return Err(crate::Error::NotEmittable(format!(
+                    "WGSL structure error: the function signature is not `-> f32`: {t}"
                 )));
             }
         }
@@ -384,20 +384,20 @@ pub fn validate_wgsl(text: &str) -> Result<(), crate::Error> {
         if t.starts_with("return ") {
             returns += 1;
             if !t.ends_with(';') {
-                return Err(crate::Error::from(
-                    "WGSL 结构错：`return` 语句必须以 `;` 结尾".to_string(),
+                return Err(crate::Error::NotEmittable(
+                    "WGSL structure error: a `return` statement must end with `;`".to_string(),
                 ));
             }
         }
     }
     if returns != 1 {
-        return Err(crate::Error::from(format!(
-            "WGSL 结构错：应有恰好一条 `return` 语句（实际 {returns} 条）"
+        return Err(crate::Error::NotEmittable(format!(
+            "WGSL structure error: expected exactly one `return` statement, found {returns}"
         )));
     }
     if fns == 0 {
-        return Err(crate::Error::from(
-            "WGSL 结构错：没有任何 `fn` 定义".to_string(),
+        return Err(crate::Error::NotEmittable(
+            "WGSL structure error: no `fn` definition".to_string(),
         ));
     }
     Ok(())
@@ -459,9 +459,7 @@ fn wgsl_raw(e: &crate::Expr) -> Result<(String, u8), crate::Error> {
             E::Num(n) if *n == 0.5 => (format!("sqrt({})", wgsl_at(a, 0)?), 9),
             E::Num(n) if *n == -1.0 => (format!("1.0f / {}", wgsl_at(a, 4)?), 3),
             _ => {
-                return Err(crate::Error::from(
-                    "WGSL 车道只支持 2/3 次幂、平方根与 -1 次幂（其它指数请手写 shader）",
-                ))
+                return Err(crate::Error::UnsupportedOperation("the WGSL lane supports only powers 2 and 3, square roots and -1 (write other exponents in a hand-written shader)".to_string()))
             }
         },
         E::Call(name, args) => {
@@ -476,19 +474,15 @@ fn wgsl_raw(e: &crate::Expr) -> Result<(String, u8), crate::Error> {
                 // ln/log in this repo are both natural log → WGSL's log
                 "ln" | "log" => "log".to_string(),
                 other => {
-                    return Err(crate::Error::from(format!(
-                        "WGSL 车道不支持函数 `{other}`（支持 exp/log/sqrt/sin/cos/tan/sinh/cosh/tanh/abs/min/max/clamp）"
-                    )))
+                    return Err(crate::Error::UnsupportedOperation(format!("the WGSL lane does not support the function `{other}` (supported: exp/log/sqrt/sin/cos/tan/sinh/cosh/tanh/abs/min/max/clamp)")))
                 }
             };
             (format!("{mapped}({})", vals.join(", ")), 9)
         }
         E::Mat(_) | E::MatPattern(_) => {
-            return Err(crate::Error::from(
-                "WGSL 车道不做矩阵（请在 CPU 侧装配，或手写 shader）".to_string(),
-            ))
+            return Err(crate::Error::UnsupportedOperation("the WGSL lane does not emit matrices (assemble them on the CPU side or write the shader by hand)".to_string()))
         }
-        E::Transpose(_) => return Err(crate::Error::from("WGSL 车道不支持转置".to_string())),
+        E::Transpose(_) => return Err(crate::Error::UnsupportedOperation("the WGSL lane does not support transpose".to_string())),
         E::Deriv(..) | E::Grad(_) | E::Laplacian(_) => {
             // Catalogued: the GPU lane cannot lower a symbolic differential operator.
             return Err(crate::Error::NotEmittable(
@@ -497,14 +491,10 @@ fn wgsl_raw(e: &crate::Expr) -> Result<(String, u8), crate::Error> {
             ));
         }
         E::Sum { .. } | E::Integral { .. } => {
-            return Err(crate::Error::from(
-                "求和/积分在 WGSL 车道要显式循环，请先展开或手写".to_string(),
-            ))
+            return Err(crate::Error::UnsupportedOperation("sums and integrals need explicit loops in the WGSL lane: expand them first or write the shader by hand".to_string()))
         }
         E::Indexed { .. } => {
-            return Err(crate::Error::from(
-                "索引符号需要张量上下文（WGSL 车道只接受标量公式）".to_string(),
-            ))
+            return Err(crate::Error::UnsupportedOperation("indexed symbols need a tensor context (the WGSL lane accepts scalar formulas only)".to_string()))
         }
     })
 }
@@ -562,9 +552,32 @@ mod tests {
         // compile
         let e = add(var("var"), num(1.0));
         let err = super::emit_wgsl_with_params(&e, "f", &["var".to_string()]).unwrap_err();
-        assert!(
-            err.render(crate::i18n::Locale::En).contains("保留字"),
-            "{err}"
+        // Catalogued: the typed variant carries both identifiers, the stable code is exposed,
+        // and the English rendering names the collision.
+        assert_eq!(err.code(), "wgsl-reserved-word", "{err}");
+        match &err {
+            crate::Error::WgslReservedWord { name, id } => {
+                assert_eq!(name, "var");
+                assert_eq!(id, "var");
+            }
+            other => panic!("expected WgslReservedWord, got {other:?}"),
+        }
+        let en = err.render(crate::i18n::Locale::En);
+        assert!(en.contains("reserved word") && en.contains("`var`"), "{en}");
+    }
+
+    #[test]
+    fn reserved_word_rendering_keeps_the_two_identifiers_in_order() {
+        // `{0}` is the symbol, `{1}` the reserved word: distinct values make a swapped
+        // template visible (the collision test above uses `var` for both).
+        let e = crate::Error::WgslReservedWord {
+            name: "x".into(),
+            id: "fn".into(),
+        };
+        assert_eq!(e.arguments(), vec!["x".to_string(), "fn".to_string()]);
+        assert_eq!(
+            e.render(crate::i18n::Locale::En),
+            "symbol `x` collides with the WGSL reserved word `fn`: rename it or write the shader by hand"
         );
     }
 

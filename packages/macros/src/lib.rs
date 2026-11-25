@@ -231,9 +231,9 @@ fn compile(src: &str, dialect: Dialect) -> Result<String, himari::FrontError> {
             .iter()
             .any(|item| himari::runtime::uses_runtime_values(&item.expr, &runtime_shapes))
     {
-        return Err(himari::FrontError::plain(
-            "runtime matrix/vector macros currently support exactly one formula; use the build.rs lane for formula chains",
-        ));
+        return Err(himari::FrontError::plain(himari::Error::UnsupportedOperation(
+                "runtime matrix/vector macros currently support exactly one formula; use the build.rs lane for formula chains".into(),
+            )));
     }
     for item in &set.items {
         // Same rule as dims_of_set: exponents like `^(1/2)` must be folded before the dimension
@@ -245,9 +245,9 @@ fn compile(src: &str, dialect: Dialect) -> Result<String, himari::FrontError> {
             himari::shape_check(&folded).map_err(himari::FrontError::plain)?;
         }
         if contains_pattern(&item.expr) {
-            return Err(himari::FrontError::plain(
-                "内联车道不支持模式矩阵（构造函数车道需要文件名/生成器）；\n                 → 把这条公式放进 `.formula` 文件，用 formula_file!(\"…\") 或 build.rs 车道",
-            ));
+            return Err(himari::FrontError::plain(himari::Error::UnsupportedOperation(
+                "the inline lane does not support pattern matrices (the constructor lane needs a file name/generator); put this formula into a `.formula` file and use formula_file!(\"…\") or the build.rs lane".into(),
+            )));
         }
     }
     // The product = a federated let chain (a later formula references an earlier one, with zero
@@ -272,7 +272,10 @@ fn compile(src: &str, dialect: Dialect) -> Result<String, himari::FrontError> {
         let fallible_roots = himari::runtime::is_real_quadratic_formula(&folded);
         if is_runtime && is_cx {
             return Err(himari::FrontError::plain(
-                "complex runtime matrix parameters are not supported yet; use real matrices",
+                himari::Error::UnsupportedOperation(
+                    "complex runtime matrix parameters are not supported yet; use real matrices"
+                        .into(),
+                ),
             ));
         }
         let block = if is_runtime || fallible_roots {
