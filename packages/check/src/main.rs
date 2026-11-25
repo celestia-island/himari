@@ -917,14 +917,13 @@ fn matrix_algebra_rows(rows: &mut Vec<Row>) {
     // 3) Rejection: not multiplicable
     let bad = himari_matlab::parse("decl { a : d; } [1, 2, 3] * [1, 2, 3]").unwrap();
     let (_, eb) = bad.into_single();
-    let err = himari::shape_check(&eb)
-        .unwrap_err()
-        .render(himari::i18n::Locale::En);
+    let typed = himari::shape_check(&eb).unwrap_err();
+    let err = typed.render(himari::i18n::Locale::En);
     rows.push(Row {
         id: "mat-alg-reject".into(),
         expect: "不可乘报错".into(),
         actual: err.clone(),
-        status: if err.contains("不可乘") {
+        status: if matches!(&typed, himari::Error::ShapeMismatch(why) if why.contains("cannot multiply")) {
             Status::Pass
         } else {
             Status::Fail
@@ -1589,7 +1588,7 @@ fn dimension_rows(rows: &mut Vec<Row>) {
         && bad
             .as_ref()
             .err()
-            .map(|e| matches!(e, himari::Error::Message(ref m) if m.contains("量纲不同")))
+            .map(|e| matches!(e, himari::Error::IncompatibleUnits { .. }))
             .unwrap_or(false);
     push(
         rows,
@@ -2294,7 +2293,8 @@ fn operator_family_rows(rows: &mut Vec<Row>) {
     let err4 = eval_value(&e5, &env4).unwrap_err();
     let ok = det2 == Some(2.0 * 7.0 - 3.0 * 5.0)
         && d4 == Some(81.0)
-        && err4.render(himari::i18n::Locale::En).contains("1–4 阶");
+        && err4.code() == "invalid-input"
+        && err4.render(himari::i18n::Locale::En).contains("1–4");
     push(
         rows,
         "op-det",

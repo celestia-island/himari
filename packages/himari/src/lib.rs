@@ -562,11 +562,12 @@ pub fn convert(value: f64, from: &str, to: &str) -> Result<f64, Error> {
     let a = parse_unit_spec(from)?;
     let b = parse_unit_spec(to)?;
     if a.dim != b.dim {
-        return Err(Error::from(format!(
-            "量纲不同，不能换算：`{from}` 是 {}，`{to}` 是 {}",
-            a.dim.display(),
-            b.dim.display()
-        )));
+        return Err(Error::IncompatibleUnits {
+            from: from.to_string(),
+            to: to.to_string(),
+            from_dim: a.dim.display().to_string(),
+            to_dim: b.dim.display().to_string(),
+        });
     }
     Ok(value * a.scale / b.scale)
 }
@@ -1982,9 +1983,7 @@ pub fn shape_of(e: &Expr) -> Result<Option<(usize, usize)>, Error> {
             let cols = rows.first().map(|r| r.len());
             if let Some(n) = cols {
                 if rows.iter().any(|r| r.len() != n) {
-                    return Err(Error::from(
-                        "矩阵字面量各行长度不一致（锯齿矩阵不支持）".to_string(),
-                    ));
+                    return Err(Error::ShapeMismatch("matrix literal rows have different lengths (jagged matrices are not supported)".into()));
                 }
             }
             Some((rows.len(), cols.unwrap_or(0)))
@@ -2067,22 +2066,22 @@ pub fn shape_check(e: &Expr) -> Result<(), Error> {
             match (sa, sb) {
                 (Some(sa), Some(sb)) => {
                     if sa.1 != sb.0 {
-                        return Err(Error::from(format!(
-                            "矩阵乘法不可乘：{sa:?} × {sb:?}（左列数 ≠ 右行数）"
-                        )));
+                        return Err(Error::ShapeMismatch(format!(
+                "cannot multiply {sa:?} by {sb:?}: columns of the left operand ≠ rows of the right"
+            )));
                     }
                 }
                 // One side is a matrix, the other's shape is unknown → undecidable, reject
                 // explicitly (no guessing)
                 (Some(_), None) if is_matrix_value(b) => {
-                    return Err(Error::from(
-                        "矩阵乘法的一侧形状编译期未知：无法判定是否可乘",
-                    ))
+                    return Err(Error::ShapeMismatch(
+                "one side of the product has a shape unknown at compile time, so it cannot be checked".into(),
+            ))
                 }
                 (None, Some(_)) if is_matrix_value(a) => {
-                    return Err(Error::from(
-                        "矩阵乘法的一侧形状编译期未知：无法判定是否可乘",
-                    ))
+                    return Err(Error::ShapeMismatch(
+                "one side of the product has a shape unknown at compile time, so it cannot be checked".into(),
+            ))
                 }
                 _ => {}
             }
@@ -2178,14 +2177,10 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
                     Value::Matrix(rows)
                 }
                 (Value::Matrix(_), Value::Matrix(_)) => {
-                    return Err(Error::from(
-                        "矩阵除以矩阵不支持——用显式逆（`inv(A) * b`）或求解器表达",
-                    ))
+                    return Err(Error::MatrixDivisionUnsupported("write the explicit inverse (`inv(A) * b`) or use a solver".into()))
                 }
                 (Value::Scalar(_), Value::Matrix(_)) => {
-                    return Err(Error::from(
-                        "标量除以矩阵没有定义——矩阵方程请写 `inv(A) * b`",
-                    ))
+                    return Err(Error::MatrixScalarMix("a scalar divided by a matrix is undefined; write matrix equations as `inv(A) * b`".into()))
                 }
                 (x, y) => {
                     let (Value::Scalar(x), Value::Scalar(y)) = (x, y) else {
@@ -2202,20 +2197,26 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
                 matches!(a.as_ref(), Expr::Mat(_) | Expr::MatPattern(_)) || is_matrix_value(a);
             if base_is_matrix {
                 let Expr::Num(k) = b.as_ref() else {
-                    return Err(Error::from("矩阵幂的指数必须是整数常量"));
+                    return Err(Error::InvalidInput(
+                        "the exponent of a matrix power must be an integer constant".into(),
+                    ));
                 };
                 if !(*k >= 0.0 && math::fract(*k) == 0.0 && *k <= 8.0) {
-                    return Err(Error::from(
-                        "矩阵幂只支持 0–8 次非负整数（其余请写显式矩阵乘/走数值库）",
-                    ));
+                    return Err(Error::InvalidInput(format!(
+                        "matrix powers support non-negative integers 0–8, got {k}; write the explicit product or use a numeric library"
+                    )));
                 }
                 let mut acc = eval_value(a, env)?;
                 if *k == 0.0 {
                     let Value::Matrix(m) = acc else {
-                        return Err(Error::from("矩阵零次幂的底数必须是方阵".to_string()));
+                        return Err(Error::ShapeMismatch(
+                            "the base of a zero matrix power must be a square matrix".into(),
+                        ));
                     };
                     if m.iter().any(|r| r.len() != m.len()) {
-                        return Err(Error::from("矩阵零次幂的底数必须是方阵".to_string()));
+                        return Err(Error::ShapeMismatch(
+                            "the base of a zero matrix power must be a square matrix".into(),
+                        ));
                     }
                     return Ok(Value::Matrix(
                         (0..m.len())
@@ -2240,7 +2241,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             let expo_is_matrix =
                 matches!(b.as_ref(), Expr::Mat(_) | Expr::MatPattern(_)) || is_matrix_value(b);
             if expo_is_matrix {
-                return Err(Error::from("矩阵不能作指数".to_string()));
+                return Err(Error::MatrixScalarMix(
+                    "a matrix cannot be an exponent".into(),
+                ));
             }
             c_bin(a, b, env, |x, y| x.pow(y))?
         }
@@ -2250,15 +2253,19 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
         }
         E::Call(name, args) => {
             let Some(arg) = args.first() else {
-                return Err(Error::from(format!("函数 `{name}` 没有参数")));
+                return Err(Error::FunctionArity {
+                    name: name.clone(),
+                    expected: 1,
+                    got: 0,
+                });
             };
             if matches!(name.as_str(), "__quad_root_1" | "__quad_root_2") {
                 if args.len() != 3 {
                     return Err(Error::from(format!("内部二次根算子 `{name}` 需要三个系数")));
                 }
-                let a = as_c(&eval_value(&args[0], env)?, "二次项系数")?;
-                let b = as_c(&eval_value(&args[1], env)?, "一次项系数")?;
-                let c = as_c(&eval_value(&args[2], env)?, "常数项")?;
+                let a = as_c(&eval_value(&args[0], env)?, "the quadratic coefficient")?;
+                let b = as_c(&eval_value(&args[1], env)?, "the linear coefficient")?;
+                let c = as_c(&eval_value(&args[2], env)?, "the constant term")?;
                 return Ok(Value::Scalar(stable_quadratic_root(
                     name == "__quad_root_1",
                     a,
@@ -2294,13 +2301,17 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
                 let m = match v {
                     Value::Matrix(m) => m,
                     Value::Scalar(_) => {
-                        return Err(Error::from(format!("`{name}` 需要矩阵参数（得到标量）")))
+                        return Err(Error::MatrixScalarMix(format!(
+                            "`{name}` needs a matrix argument, got a scalar"
+                        )))
                     }
                 };
                 return match name.as_str() {
                     "trace" => {
                         if m.len() != m.first().map(|r| r.len()).unwrap_or(0) {
-                            return Err(Error::from("`trace` 需要方阵".to_string()));
+                            return Err(Error::ShapeMismatch(
+                                "`trace` needs a square matrix".into(),
+                            ));
                         }
                         let mut acc = C::ZERO;
                         for (i, row) in m.iter().enumerate() {
@@ -2336,11 +2347,14 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             if args.len() > 1 {
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
-                    vals.push(as_c(&eval_value(a, env)?, &format!("`{name}` 的参数"))?);
+                    vals.push(as_c(
+                        &eval_value(a, env)?,
+                        &format!("the argument of `{name}`"),
+                    )?);
                 }
                 return Ok(Value::Scalar(c_call_n(name, &vals)?));
             }
-            let c = as_c(&eval_value(arg, env)?, &format!("`{name}` 的参数"))?;
+            let c = as_c(&eval_value(arg, env)?, &format!("the argument of `{name}`"))?;
             Value::Scalar(c_call(name, c)?)
         }
         E::Mat(rows) => {
@@ -2348,7 +2362,7 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             for r in rows {
                 let mut row = Vec::with_capacity(r.len());
                 for cell in r {
-                    row.push(as_c(&eval_value(cell, env)?, "矩阵元素")?);
+                    row.push(as_c(&eval_value(cell, env)?, "a matrix element")?);
                 }
                 out.push(row);
             }
@@ -2368,7 +2382,11 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
                 }
                 Value::Matrix(t)
             }
-            Value::Scalar(_) => return Err(Error::from("标量不能转置".to_string())),
+            Value::Scalar(_) => {
+                return Err(Error::MatrixScalarMix(
+                    "a scalar cannot be transposed".into(),
+                ))
+            }
         },
         E::Sum {
             var,
@@ -2388,7 +2406,7 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             for k in lo..=hi {
                 let mut inner = env.clone();
                 inner.insert(var.clone(), k as f64);
-                acc = acc.add(as_c(&eval_value(body, &inner)?, "求和体")?);
+                acc = acc.add(as_c(&eval_value(body, &inner)?, "the summand")?);
             }
             Value::Scalar(acc)
         }
@@ -2407,7 +2425,7 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             let f = |x: f64| -> Result<C, Error> {
                 let mut inner = env.clone();
                 inner.insert(var.clone(), x);
-                as_c(&eval_value(body, &inner)?, "被积函数")
+                as_c(&eval_value(body, &inner)?, "the integrand")
             };
             let mut acc = f(lo)?.add(f(hi)?);
             for k in 1..n {
@@ -2446,9 +2464,9 @@ fn map_mat(m: &[Vec<C>], f: impl Fn(C) -> C) -> Vec<Vec<C>> {
 /// lane are never mixed).
 fn as_c(v: &Value, what: &str) -> Result<C, Error> {
     v.as_scalar().ok_or_else(|| {
-        Error::from(format!(
-            "{what}必须是标量（矩阵请显式逐元素表达，无隐式广播）"
-        ))
+        Error::MatrixScalarMix(format!(
+                "{what} must be a scalar (write matrices element by element; there is no implicit broadcast)"
+            ))
     })
 }
 
@@ -2757,11 +2775,13 @@ fn c_call(name: &str, x: C) -> Result<C, Error> {
 fn mat_det(m: &[Vec<C>]) -> Result<C, Error> {
     let n = m.len();
     if n == 0 || m.iter().any(|r| r.len() != n) {
-        return Err(Error::from("`det` 需要非空方阵".to_string()));
+        return Err(Error::ShapeMismatch(
+            "`det` needs a non-empty square matrix".into(),
+        ));
     }
     if n > 4 {
-        return Err(Error::from(format!(
-            "`det` 只支持 1–4 阶（得到 {n} 阶）：更高阶请走数值库"
+        return Err(Error::InvalidInput(format!(
+            "`det` supports orders 1–4 only (got {n}); use a numeric library for higher orders"
         )));
     }
     if n == 1 {
@@ -2810,8 +2830,8 @@ fn c_bin(
             let mut out = Vec::with_capacity(ma.len());
             for (ra, rb) in ma.iter().zip(mb.iter()) {
                 if ra.len() != rb.len() {
-                    return Err(Error::from(format!(
-                        "矩阵逐元素运算列数不一致：{} vs {}",
+                    return Err(Error::ShapeMismatch(format!(
+                        "element-wise operation on matrices with different column counts: {} vs {}",
                         ra.len(),
                         rb.len()
                     )));
@@ -2824,9 +2844,7 @@ fn c_bin(
             }
             Ok(Value::Matrix(out))
         }
-        _ => Err(Error::from(
-            "矩阵与标量的逐元素运算请显式写出（不做隐式广播）",
-        )),
+        _ => Err(Error::MatrixScalarMix("write element-wise matrix/scalar operations explicitly (there is no implicit broadcast)".into())),
     }
 }
 
@@ -2837,8 +2855,8 @@ fn mat_mul_value_of(a: Value, b: Value) -> Result<Value, Error> {
         (Value::Matrix(ma), Value::Matrix(mb)) => {
             let n_inner = ma.first().map(|r| r.len()).unwrap_or(0);
             if mb.len() != n_inner {
-                return Err(Error::from(format!(
-                    "矩阵乘法不可乘：{n_inner} ≠ {}",
+                return Err(Error::ShapeMismatch(format!(
+                    "cannot multiply: inner dimension {n_inner} ≠ rows {}",
                     mb.len()
                 )));
             }
@@ -3173,8 +3191,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                     for (a, b) in r.iter_mut().zip(da.0) {
                         let prod = b as i32 * p;
                         if prod % 2 != 0 {
-                            return Err(Error::from(format!(
-                                "`^{n}` 要求量纲 {} 的每个指数乘 {p} 后能被 2 整除",
+                            return Err(Error::InvalidInput(format!(
+                                "`^{n}` needs every exponent of {} to stay even after scaling by {p}, otherwise the dimension is undefined",
                                 da.display()
                             )));
                         }
@@ -3182,12 +3200,20 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                     }
                     Dim(r)
                 }
-                None => return Err(Error::from("幂指数必须是数值常量")),
+                None => {
+                    return Err(Error::InvalidInput(
+                        "the exponent must be a numeric constant".into(),
+                    ))
+                }
             }
         }
         Call(name, args) => {
             let Some(arg0) = args.first() else {
-                return Err(Error::from(format!("函数 `{name}` 没有参数")));
+                return Err(Error::FunctionArity {
+                    name: name.clone(),
+                    expected: 1,
+                    got: 0,
+                });
             };
             // The system form `solve([eq…], [x…])`: `arg0` is a **list of equations**,
             // each equation only needs to be **homogeneous under addition/subtraction** on its
@@ -3235,8 +3261,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                     let mut r = [0i16; 7];
                     for (a, b) in r.iter_mut().zip(d.0) {
                         if b % 2 != 0 {
-                            return Err(Error::from(format!(
-                                "`sqrt` 参数量纲 {} 不是偶数次，无法开方",
+                            return Err(Error::InvalidInput(format!(
+                                "`sqrt` needs a dimension whose exponents are all even, got {}",
                                 d.display()
                             )));
                         }
@@ -3255,8 +3281,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                     for a in &args[1..] {
                         let other = dim_check(a, dims)?;
                         if other != d {
-                            return Err(Error::from(format!(
-                                "`{name}` 的参数量纲必须一致：{} vs {}",
+                            return Err(Error::InvalidInput(format!(
+                                "`{name}` requires all its arguments to have the same dimension: {} vs {}",
                                 d.display(),
                                 other.display()
                             )));
@@ -3275,9 +3301,7 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                         _ => match shape_of(&args[0])? {
                             Some((r, c)) if r == c && r > 0 => r,
                             _ => {
-                                return Err(Error::from(
-                                    "`det` 需要具体方阵字面量（形状未知时量纲算不出）".to_string(),
-                                ))
+                                return Err(Error::InvalidInput("`det` needs a concrete square matrix literal (its shape is unknown, so the dimension cannot be computed)".into()))
                             }
                         },
                     };
@@ -3291,8 +3315,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                 "dot" => {
                     let d2 = dim_check(&args[1], dims)?;
                     if d2 != d {
-                        return Err(Error::from(format!(
-                            "`dot` 的两个参数必须同量纲：{} vs {}",
+                        return Err(Error::InvalidInput(format!(
+                            "`dot` requires both arguments to have the same dimension: {} vs {}",
                             d.display(),
                             d2.display()
                         )));
@@ -3363,8 +3387,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                         None => acc = Some(d),
                         Some(prev) if prev == d => {}
                         Some(prev) => {
-                            return Err(Error::from(format!(
-                                "矩阵元素量纲不一致：{} vs {}",
+                            return Err(Error::InvalidInput(format!(
+                                "matrix elements must all share one dimension: {} vs {}",
                                 prev.display(),
                                 d.display()
                             )))
@@ -3391,8 +3415,8 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                     None => acc = Some(d),
                     Some(prev) if prev == d => {}
                     Some(prev) => {
-                        return Err(Error::from(format!(
-                            "模式矩阵具体元素量纲不一致：{} vs {}",
+                        return Err(Error::InvalidInput(format!(
+                            "pattern-matrix elements must all share one dimension: {} vs {}",
                             prev.display(),
                             d.display()
                         )))
@@ -7197,7 +7221,11 @@ mod tests {
         assert_eq!(convert(1.0, "mg", "g").unwrap(), 1e-3);
         assert!(matches!(
             convert(1.0, "nF", "V").unwrap_err(),
-            Error::Message(ref m) if m.contains("量纲不同")
+            Error::IncompatibleUnits {
+                ref from,
+                ref to,
+                ..
+            } if from == "nF" && to == "V"
         ));
         // CGPM 2022 prefixes (R/Q large, r/q small).
         assert_eq!(convert(1.0, "Qm", "m").unwrap(), 1e30);
@@ -7430,8 +7458,8 @@ mod tests {
         let b = Expr::Mat(vec![vec![num(2.0), num(2.0)]]);
         // Matrix / matrix = inversion, semantically confusing → reject
         let err = eval_value(&div(a.clone(), b), &HashMap::new()).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("矩阵") && text.contains("inv"), "{text}");
+        assert_eq!(err.code(), "matrix-division-unsupported", "{err}");
+        assert!(err.render(crate::i18n::Locale::En).contains("inv"), "{err}");
         // Matrix / scalar = element-wise division: consistent with the emission lane (the Div branch
         // of `flatten` divides cell by cell)
         match eval_value(&div(a.clone(), num(2.0)), &HashMap::new()).unwrap() {
@@ -7572,8 +7600,10 @@ mod tests {
         // A genuine matrix as the exponent → still rejected
         let bad = pow(num(2.0), j.clone());
         let err = eval_value(&bad, &env).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("矩阵不能作指数"), "{text}");
+        assert_eq!(err.code(), "matrix-scalar-mix", "{err}");
+        assert!(err
+            .render(crate::i18n::Locale::En)
+            .contains("cannot be an exponent"));
         // Dimension penetration of det(inv(J)): dim(inv(J)) = J⁻¹, det = J⁻²
         let decls = vec![Decl {
             name: "c".into(),
@@ -8479,10 +8509,13 @@ mod tests {
         // Matrix×matrix with mismatched inner dims: the sentence names both factors, so assert
         // the payload rather than merely "something failed".
         let err = shape_check(&mul(coeffs.clone(), r2.clone())).unwrap_err();
-        assert!(
-            matches!(&err, Error::Message(m) if m.contains("不可乘")),
-            "{err}"
-        );
+        match &err {
+            Error::ShapeMismatch(why) => assert!(
+                why.contains("cannot multiply") && why.contains("1, 3"),
+                "the sentence must name both factors: {why}"
+            ),
+            other => panic!("{other:?}"),
+        }
         // Legal shapes still pass: 2×2 times 2×1
         let m = Expr::Mat(vec![vec![num(1.0), num(2.0)], vec![num(3.0), num(4.0)]]);
         let col = Expr::Mat(vec![vec![num(1.0)], vec![num(2.0)]]);
@@ -8910,8 +8943,8 @@ mod tests {
             &HashMap::new(),
         )
         .unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("1–4 阶"), "{text}");
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(err.to_string().contains("1–4"), "{err}");
 
         // Numeric check of the order-3 inverse: M·M⁻¹ = I
         let mut env = HashMap::new();
@@ -9744,8 +9777,17 @@ mod tests {
         ]);
         let b = a.clone();
         let err = shape_check(&mul(a, b)).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("不可乘"), "{text}");
+        assert_eq!(err.code(), "shape-mismatch", "{err}");
+        // The payload names both factors, so assert it rather than merely the code.
+        match &err {
+            Error::ShapeMismatch(why) => {
+                assert!(
+                    why.contains("cannot multiply") && why.contains("2"),
+                    "{why}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
         // Inconsistent shapes for addition
         let r2 = Expr::Mat(vec![vec![num(1.0)], vec![num(2.0)]]);
         let r3 = Expr::Mat(vec![vec![num(1.0)], vec![num(2.0)], vec![num(3.0)]]);
