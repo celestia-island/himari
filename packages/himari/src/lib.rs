@@ -7485,16 +7485,26 @@ mod tests {
     fn hostile_sources_are_rejected_not_crashed() {
         // 1) Invisible characters: zero-width spaces / bidirectional overrides / NUL are always
         // rejected (not as vague as "unknown character")
-        for (src, kind) in [
-            ("decl { x : d; } x\u{200b} + 1", "zero-width"),
-            ("decl { x : d; } x + 1\u{202e}", "bidirectional"),
-            ("decl { x : d; } x + 1\u{0}", "NUL"),
-            ("decl { x : d; } x + 1\u{feff}", "byte order mark"),
+        for (src, payload) in [
+            (
+                "decl { x : d; } x\u{200b} + 1",
+                "200B (zero-width character)",
+            ),
+            (
+                "decl { x : d; } x + 1\u{202e}",
+                "202E (bidirectional override)",
+            ),
+            ("decl { x : d; } x + 1\u{0}", "0000 (NUL)"),
+            ("decl { x : d; } x + 1\u{feff}", "FEFF (byte order mark)"),
         ] {
-            // Assert the stable code, not the sentence: the wording is per-locale.
+            // Assert the stable code and the typed payload (code point + class) — not the
+            // rendered sentence, whose wording is per-locale.
             let err = scan_source(src).unwrap_err();
             assert_eq!(err.code.code(), "invisible-character", "{src:?}");
-            assert!(err.msg.contains(kind), "{src:?} → {}", err.msg);
+            match &*err.code {
+                i18n::Error::InvisibleCharacter(p) => assert_eq!(p, payload, "{src:?}"),
+                other => panic!("{src:?} → {other:?}"),
+            }
         }
         // Normal tabs and newlines must pass
         assert!(scan_source("decl {\n\tx : d;\n}\nx + 1").is_ok());

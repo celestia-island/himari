@@ -84,8 +84,10 @@ fn reference_solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
         b.swap(col, pivot);
         for row in col + 1..n {
             let factor = a[row][col] / a[col][col];
-            for j in col..n {
-                a[row][j] -= factor * a[col][j];
+            let (above, from_row) = a.split_at_mut(row);
+            let pivot_row = &above[col];
+            for (arj, acj) in from_row[0].iter_mut().zip(pivot_row).skip(col) {
+                *arj -= factor * *acj;
             }
             b[row] -= factor * b[col];
         }
