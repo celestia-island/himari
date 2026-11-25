@@ -959,8 +959,9 @@ Also, tint (Chrome/Dawn's implementation) and naga differ on a few edge rules; t
 
 ## Status
 
-Iterating on the `dev` branch (local repository, not pushed to a remote). The crates.io / docs.rs badges are reserved entry points;
-**nothing has been published yet**; `publish = false` on the formal crates is the manual-review lock, and examples and fixtures stay unpublishable too.
+The repository lives on the org (`celestia-island/himari`, single squashed master). The crates.io /
+docs.rs badges light up on first publish; `publish = false` on the formal crates is the manual-review
+lock, and examples and fixtures stay unpublishable too.
 Internal dependencies already carry `version = "0.1"` with local paths, and once the review is lifted they must be published in topological order:
 `himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
 The `himari-check` tooling release is decided separately. `himari-standards` and `himari-lean` are new `publish = false` crates in the workspace;
