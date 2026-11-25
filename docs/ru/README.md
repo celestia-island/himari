@@ -7,6 +7,14 @@
 <p align="center"><strong>Формулы как активы: один источник истины, три поверхности, компиляция в Rust.</strong></p>
 
 <div align="center">
+<!-- CI -->
+<a href="https://github.com/celestia-island/himari/actions/workflows/ci.yml">
+<img src="https://img.shields.io/github/actions/workflow/status/celestia-island/himari/ci.yml?label=CI" alt="CI" />
+</a>
+<!-- depspec -->
+<a href="https://github.com/celestia-island/himari/actions/workflows/depspec-lint.yml">
+<img src="https://img.shields.io/github/actions/workflow/status/celestia-island/himari/depspec-lint.yml?label=depspec" alt="depspec" />
+</a>
 <!-- License -->
 <a href="https://github.com/celestia-island/sysl">
 <img src="https://img.shields.io/badge/license-SySL%201.0-blue" alt="License: SySL 1.0" />
