@@ -355,6 +355,9 @@ fn string_producer_path(path: &syn::Path) -> bool {
     };
     let q = qualifier.to_string();
     let n = name.to_string();
+    // A closed whitelist on purpose: an "any uppercase qualifier + to_string" heuristic would
+    // also count `Weird::to_string` (a false positive that fails a ceiling-0 gate loudly). The
+    // forms below are the ones whose result type is unambiguously `String`.
     matches!(
         (q.as_str(), n.as_str()),
         ("String", "from")
@@ -362,7 +365,7 @@ fn string_producer_path(path: &syn::Path) -> bool {
             | ("ToString", "to_string")
             | ("ToOwned", "to_owned")
             | ("str", "to_owned")
-    ) || (n == "to_string" || n == "to_owned") && q.starts_with(|c: char| c.is_uppercase())
+    )
 }
 
 /// The closure-body rule for the `map_err` bucket: everything [`static_string_shape`] accepts,
@@ -1542,6 +1545,15 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
             r#"fn f(r: Result<u8, std::num::ParseIntError>) -> Result<u8, String> { r.map_err(String::from) }"#,
         );
         assert_eq!(c.map_err_stage, 1, "map_err(String::from): {c:?}");
+        // The whitelist is closed: an unrelated type's inherent `to_string` is NOT counted
+        // (an uppercase-qualifier heuristic would flag it, which a ceiling-0 gate cannot afford).
+        let c = himari_counts(
+            r#"fn f(r: Result<u8, E>) -> Result<u8, F> { r.map_err(my::Weird::to_string) }"#,
+        );
+        assert_eq!(
+            c.map_err_stage, 0,
+            "unrelated to_string is not a String funnel: {c:?}"
+        );
         let c = himari_counts(
             r#"fn f(r: Result<u8, std::num::ParseIntError>) -> Result<u8, String> { r.map_err(|e| e.to_string()) }"#,
         );
