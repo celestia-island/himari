@@ -22,8 +22,13 @@
 //! 3. **String-staging shapes** (only under `packages/himari/src/` — the crate that owns the
 //!    catalogue must be string-free in its error paths): `ok_or`/`ok_or_else` whose argument
 //!    is a `format!`/string literal/`to_string`-of-a-literal; `map_err` whose closure produces
-//!    such a value or calls `.to_string()` on the incoming error; and `Err(format!(..))` /
-//!    `Err("…".into())`. Front-end crates (`latex`/`matlab`) build catalogued payloads, and
+//!    such a value, calls `.to_string()` on the incoming error, or names a known `String`
+//!    producer (`map_err(String::from)`); and `Err(..)` over any of those shapes. A conditional
+//!    (`if`/`match`) counts when **every** branch is such a shape, and an `.into()`/`.to_string()`
+//!    receiver is followed recursively; an opaque value or an unknown branch makes the
+//!    expression undecidable and the gate refuses to guess. Default-value and panic shapes
+//!    (`unwrap_or_else`, `expect(msg)`) are deliberately NOT counted: they are not the error
+//!    value of the `Result`. Front-end crates (`latex`/`matlab`) build catalogued payloads, and
 //!    peripheral CLIs own their plain diagnostic strings, so they are outside this family by
 //!    design; anything they launder *into* the catalogue is still caught by family 2.
 //!
@@ -316,8 +321,51 @@ fn static_string_shape(expr: &Expr) -> bool {
             ) && call.args.first().is_some_and(lit_str)
         }
         Expr::Block(b) => block_tail(&b.block).is_some_and(static_string_shape),
+        // A conditional whose EVERY branch is a staged string is still a staged string. Arms
+        // whose body is anything else (a call returning an unknown type, a variable) make the
+        // whole expression undecidable, and the gate refuses to guess.
+        Expr::If(i) => {
+            // `then_branch` / the `else` block are `Block`s: compare their tail expressions.
+            i.then_branch
+                .stmts
+                .last()
+                .and_then(|stmt| match stmt {
+                    Stmt::Expr(e, None) => Some(static_string_shape(e)),
+                    _ => None,
+                })
+                .unwrap_or(false)
+                && i.else_branch.as_ref().is_some_and(|(_, e)| match &**e {
+                    Expr::Block(b) => block_tail(&b.block).is_some_and(static_string_shape),
+                    other => static_string_shape(other),
+                })
+        }
+        Expr::Match(m) => {
+            !m.arms.is_empty() && m.arms.iter().all(|arm| static_string_shape(&arm.body))
+        }
         _ => false,
     }
+}
+
+/// Is this path a function/constructor that PRODUCES a `String`? Only constructors whose result
+/// type is unambiguous qualify, so `map_err(String::from)` is recognisable staging while
+/// `map_err(my_parser)` is not.
+fn string_producer_path(path: &syn::Path) -> bool {
+    let Some((qualifier, name)) = tail_two(path) else {
+        return false;
+    };
+    let q = qualifier.to_string();
+    let n = name.to_string();
+    // A closed whitelist on purpose: an "any uppercase qualifier + to_string" heuristic would
+    // also count `Weird::to_string` (a false positive that fails a ceiling-0 gate loudly). The
+    // forms below are the ones whose result type is unambiguously `String`.
+    matches!(
+        (q.as_str(), n.as_str()),
+        ("String", "from")
+            | ("String", "new")
+            | ("ToString", "to_string")
+            | ("ToOwned", "to_owned")
+            | ("str", "to_owned")
+    )
 }
 
 /// The closure-body rule for the `map_err` bucket: everything [`static_string_shape`] accepts,
@@ -570,14 +618,19 @@ impl Counter {
                     }
                     // map_err(<closure producing a staged string, or to_string-ing the
                     // incoming error>) — the laundering moment for a Result<_, String>.
+                    // The function-reference form counts too when the target is a known String
+                    // producer (`map_err(String::from)`); an opaque function is not decidable.
                     "map_err" => {
-                        if let Some(Expr::Closure(c)) = m.args.first() {
-                            if let Some(body) = closure_tail(&c.body) {
-                                if string_stage_body(body) {
-                                    self.c.map_err_stage += 1;
-                                    self.record("map_err_stage", e);
-                                }
+                        let staged = match m.args.first() {
+                            Some(Expr::Closure(c)) => {
+                                closure_tail(&c.body).is_some_and(string_stage_body)
                             }
+                            Some(Expr::Path(ExprPath { path, .. })) => string_producer_path(path),
+                            _ => false,
+                        };
+                        if staged {
+                            self.c.map_err_stage += 1;
+                            self.record("map_err_stage", e);
                         }
                     }
                     _ => {}
@@ -1473,9 +1526,56 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
             r#"fn f(x: &str) -> Result<(), Error> { Err((format!("bad {x}").to_owned()).into()) }"#,
         );
         assert_eq!(c.err_stage, 1, "Err(format!.to_owned().into()): {c:?}");
-        // ...but a conversion of an OPAQUE value stays uncounted: it may target a typed error.
-        let c = himari_counts(r#"fn f(e: String) -> Result<(), Error> { Err(e.into()) }"#);
-        assert_eq!(c.err_stage, 0, "opaque .into() is not decidable: {c:?}");
+        // A conditional whose every branch is a staged string is a staged string.
+        let c = himari_counts(
+            r#"fn f(v: bool) -> Result<(), Error> { Err(if v { format!("a") } else { "b".to_string() }.into()) }"#,
+        );
+        assert_eq!(c.err_stage, 1, "if/else of staged strings: {c:?}");
+        let c = himari_counts(
+            r#"fn f(n: u8) -> Result<(), Error> { Err(match n { 0 => "a".to_string(), _ => format!("b") }.into()) }"#,
+        );
+        assert_eq!(c.err_stage, 1, "match of staged strings: {c:?}");
+        // ...but a single undecidable branch makes the whole expression undecidable.
+        let c = himari_counts(
+            r#"fn f(n: u8) -> Result<(), Error> { Err(match n { 0 => "a".to_string(), _ => unknown() }.into()) }"#,
+        );
+        assert_eq!(c.err_stage, 0, "a non-string arm blocks the match: {c:?}");
+        // `map_err` with a String-producing FUNCTION REFERENCE is staging too.
+        let c = himari_counts(
+            r#"fn f(r: Result<u8, std::num::ParseIntError>) -> Result<u8, String> { r.map_err(String::from) }"#,
+        );
+        assert_eq!(c.map_err_stage, 1, "map_err(String::from): {c:?}");
+        // The whitelist is closed: an unrelated type's inherent `to_string` is NOT counted
+        // (an uppercase-qualifier heuristic would flag it, which a ceiling-0 gate cannot afford).
+        let c = himari_counts(
+            r#"fn f(r: Result<u8, E>) -> Result<u8, F> { r.map_err(my::Weird::to_string) }"#,
+        );
+        assert_eq!(
+            c.map_err_stage, 0,
+            "unrelated to_string is not a String funnel: {c:?}"
+        );
+        let c = himari_counts(
+            r#"fn f(r: Result<u8, std::num::ParseIntError>) -> Result<u8, String> { r.map_err(|e| e.to_string()) }"#,
+        );
+        assert_eq!(
+            c.map_err_stage, 1,
+            "map_err(to_string closure) still counts: {c:?}"
+        );
+        // ...but an opaque function reference is not decidable, and `FrontError::from` is the
+        // typed conversion this repository uses on purpose.
+        let c = himari_counts(r#"fn f(r: Result<u8, E>) -> Result<u8, F> { r.map_err(convert) }"#);
+        assert_eq!(c.map_err_stage, 0, "opaque map_err target: {c:?}");
+        let c = himari_counts(
+            r#"fn f(r: Result<u8, E>) -> Result<u8, F> { r.map_err(FrontError::from) }"#,
+        );
+        assert_eq!(c.map_err_stage, 0, "typed conversion is not staging: {c:?}");
+        // DECISION (H-11): `unwrap_or_else` and `expect(msg)` are default-value and panic
+        // shapes, not error-value shapes, so they are not counted. Pinned so the decision is
+        // visible rather than implied.
+        let c = himari_counts(r#"fn f(r: Result<u8, E>) -> u8 { r.unwrap_or_else(|_| 0) }"#);
+        assert_eq!(c.total(), 0, "unwrap_or_else is a default shape: {c:?}");
+        let c = himari_counts(r#"fn f(r: Result<u8, E>) -> u8 { r.expect("boom") }"#);
+        assert_eq!(c.total(), 0, "expect is a panic shape: {c:?}");
         let c =
             himari_counts(r#"fn f(d: &str) -> Result<(), Error> { Err((format!("{d}")).into()) }"#);
         assert_eq!(c.err_stage, 1, "Err(format!.into()): {c:?}");
