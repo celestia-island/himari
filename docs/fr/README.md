@@ -946,7 +946,7 @@ De plus, tint (l'implémentation de Chrome/Dawn) et naga diffèrent sur quelques
 
 ## État
 
-Itération sur la branche `dev` (dépôt local, non poussé vers un distant). Les badges crates.io / docs.rs sont des points d'entrée réservés.
+Le dépôt vit sur l'organisation (`celestia-island/himari`, master unique en squash). Les badges crates.io / docs.rs sont des entrées réservées.
 Les crates de bibliothèque sont **publiables** : `cargo publish -p himari --dry-run` empaquette, reconstruit l'archive depuis ses propres sources et atteint l'étape de téléversement, et les neuf noms de crates sont encore libres sur crates.io.
 Ce qui reste, c'est le téléversement lui-même — il exige un token de registre et il est irréversible (un yank ne libère jamais un numéro de version), donc c'est une décision délibérée et séparée plutôt qu'une étape de build.
 Les exemples, fixtures et crates d'outillage restent non publiables.

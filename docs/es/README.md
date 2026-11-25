@@ -945,7 +945,7 @@ Además, tint (la implementación de Chrome/Dawn) y naga difieren en algunas reg
 
 ## Estado
 
-Iterando en la rama `dev` (repositorio local, no subido a un remoto). Las insignias de crates.io / docs.rs son puntos de entrada reservados.
+El repositorio vive en la organización (`celestia-island/himari`, master único con squash). Las insignias de crates.io / docs.rs son entradas reservadas.
 Las crates de biblioteca son **publicables**: `cargo publish -p himari --dry-run` empaqueta, reconstruye el archivo desde sus propias fuentes y llega al paso de subida, y los nueve nombres de crates siguen libres en crates.io.
 Lo que queda es la subida misma — necesita un token de registro y es irreversible (un yank nunca libera un número de versión), así que es una decisión deliberada y separada, no un paso de build.
 Los ejemplos, fixtures y las crates de herramientas permanecen no publicables.

@@ -943,7 +943,7 @@ WGSL 没有表达式体函数；主体必须是 `return expr;`，而生成器一
 
 ## 状态
 
-在 `dev` 分支上迭代（本地仓库，尚未推送到远程）。crates.io / docs.rs 徽章是预留的入口。
+仓库在组织内（`celestia-island/himari`，单一 squash master）。crates.io / docs.rs 徽章是预留的入口。
 库 crates 是**可发布的**：`cargo publish -p himari --dry-run` 会打包、用自己的源码重建归档并走到上传那一步，且全部九个 crate 名在 crates.io 上仍然空闲。
 剩下的是上传本身——它需要 registry token，而且不可逆（yank 永远不会释放版本号），所以这是一个刻意的、独立的决定，而不是一个构建步骤。
 示例、fixtures 与工具类 crates 保持不可发布。
