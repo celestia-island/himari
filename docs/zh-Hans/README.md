@@ -638,7 +638,7 @@ crate 里每个失败都是同一个枚举 `himari::Error`。它不是一堆字�
 各不相同、而码始终不变」。
 
 尚未编目的消息保留在 `Error::Message(String)`：它在任何语言下都原样输出，所以分期迁移在**类型上**
-可见，而不是假装已翻译。这笔债**由门禁计量**而非散文：`python3 scripts/staging_budget.py` 统计工作区所有生产树（`packages/`、`examples/`、`tools/`）里全部未编目的生产者（`Error::from(`、`Error::Message(`、前端的 `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`），排除测试与目录本身，超过记录上限（当前 175）即失败。门禁是一次 AST 遍历（`tools/staging-budget`，基于 `syn`），计数不依赖行布局、空白或注释，`matches!(e, Error::Message(m) if …)` 这类**模式**绝不会被误判为构造。上限只能下调，且这一点是强制的：CI 以 `--against-git` 运行门禁，从 `HEAD` 读取 `tools/staging-budget/src/ceiling.txt`，工作树的上限更高即失败。全部 38 个变体由 `catalogue_completeness_tests` 钉住——逐个构造并在九语下渲染（非空、无泄漏的 `{n}`）。LSP 快速修复的*标题*仍是中文；其诊断已本地化。
+可见，而不是假装已翻译。这笔债**由门禁计量**而非散文：`python3 scripts/staging_budget.py` 统计工作区所有生产树（`packages/`、`examples/`、`tools/`）里全部未编目的生产者（`Error::from(`、`Error::Message(`、前端的 `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`），排除测试与目录本身，超过记录上限（上限记录在 `tools/staging-budget/src/ceiling.txt`，只降不升）即失败。门禁是一次 AST 遍历（`tools/staging-budget`，基于 `syn`），计数不依赖行布局、空白或注释，`matches!(e, Error::Message(m) if …)` 这类**模式**绝不会被误判为构造。上限只能下调，且这一点是强制的：CI 以 `--against-git` 运行门禁，从 `HEAD` 读取 `tools/staging-budget/src/ceiling.txt`，工作树的上限更高即失败。全部 38 个变体由 `catalogue_completeness_tests` 钉住——逐个构造并在九语下渲染（非空、无泄漏的 `{n}`）。LSP 快速修复的*标题*仍是中文；其诊断已本地化。
 
 ```text
 python3 scripts/staging_budget.py                # counts + ceiling
