@@ -943,8 +943,7 @@ and it can even judge correct code wrong**". The first naga run exposed the whol
 Another corrected belief: `return 2.5;` is **legal** in naga (abstract-float lands as f32 by context) — so "floats must carry `f`" is a style
 convention of this lane, not the WGSL spec.
 
-**Validation boundary (stated honestly)**: naga validates **syntax and types** only. "Does the kernel compute the right numbers on a real GPU" is still
-unverified — that needs a wgpu runtime + a GPU (node-3 has an RTX 5880, pending hookup).
+**Validation boundary (stated honestly)**: naga validates **syntax and types** only; the *numeric* side is now measured by [`just gpu-verify`](../gpu-verify) — the emitted kernel runs through a real Vulkan driver path (Mesa lavapipe on this host) and its results are compared with the f64 CPU lane (four formulas, sixteen points, worst relative error 3.2e-7; swapping one emitter operator makes the lane fail). What that run does **not** cover: a hardware GPU (vendor f32 rounding, workgroup scheduling, driver bugs — this host's only Vulkan device is a software implementation, and node-3's RTX 5880 is still pending hookup), and the four formulas are a sample, not the whole emittable language.
 Also, tint (Chrome/Dawn's implementation) and naga differ on a few edge rules; this repository is responsible to naga only.
 
 ## Choosing a lane by domain (one table)

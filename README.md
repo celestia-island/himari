@@ -53,30 +53,36 @@ and is the canonical source every locale is checked against by scripts/i18n_chec
 Himari turns **one formula asset** — written in a LaTeX subset, paper notation, or MATLAB style —
 into checked Rust code. The source lowers to a single dimensioned IR, so the same formula can be
 evaluated, differentiated, formatted, and emitted as an f64/f32 Rust function, a WGSL kernel, or a
-checked-in build.rs artifact without ever re-transcribing the mathematics by hand.
+checked-in build.rs artifact — with the seven base quantities (kg·m·s·A·K·mol·cd) checked at
+compile time: `m + s` does not compile. The capability list, the language guide and the error
+catalogue live in [the documentation](https://celestia-island.github.io/himari/).
 
-Dimensions are not a convention here, they are the compiler's business: the seven base quantities
-(kg·m·s·A·K·mol·cd) form an algebra that is solved at compile time, and a dimensionally
-inconsistent formula does not compile — rejection is a feature, not an error message to suppress.
+## Quickstart
 
-- **Three notation surfaces, one IR** — LaTeX subset, paper notation (Greek letters, ellipses,
-  matrix sketches), and MATLAB style all parse into the same dimensioned intermediate representation.
-- **Compile-time dimension algebra** over kg·m·s·A·K·mol·cd: `m + s` is a compile error.
-- **Compile-time dimension and shape checks** for scalars, matrices, and pattern matrices, with
-  symbolic differentiation, CSE, and constant folding built in.
-- **WGSL emission** for GPU kernels, with a deliberately small, naga-validated subset.
-- **Nine-locale catalogued diagnostics** — parse errors carry carets and suggestions and render in
-  the caller's language.
-- **`no_std` support**: the core parser and the generated code run without the standard library
-  (generated code keeps its own libm lane for bare-metal targets).
+```bash
+# once the first version is on crates.io (see Status in the docs):
+cargo add himari himari-macros
+```
 
 ```rust
-formula_matlab!{
-    decl { F : force [N]; m : mass [kg]; r : radius [m]; }
-    accel = F / m
-    mech = ( accel * r )^(1/2)
-}
-// expands to a let chain: let accel = F / m; let mech = (accel * r).sqrt(); mech
+use himari_macros::formula_matlab;
+
+let v0 = 12.0f64;
+let g = 9.80665f64;
+let t = 3.0f64;
+let v = formula_matlab! {
+    decl { v0 : speed [m/s]; g : acceleration [m/s^2]; t : time [s]; }
+    v0 + g * t
+};
+assert!((v - 41.41995).abs() < 1e-9); // dimensions checked at compile time
+```
+
+Seven runnable examples live in [`examples/`](examples/README.md) — inline macros, unit
+conversion, symbolic differentiation, WGSL emission, the error catalogue, matrix idioms and a
+cross-file `.formula` library with a build.rs lane:
+
+```bash
+cargo run -p himari-example-quickstart
 ```
 
 ## Documentation

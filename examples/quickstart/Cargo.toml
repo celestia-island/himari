@@ -1,0 +1,15 @@
+[package]
+name = "himari-example-quickstart"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "quickstart"
+path = "src/main.rs"
+
+[dependencies]
+
+himari = { workspace = true, features = ["std"] }
+himari-macros = { workspace = true }
+
