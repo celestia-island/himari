@@ -947,12 +947,7 @@ De plus, tint (l'implémentation de Chrome/Dawn) et naga diffèrent sur quelques
 ## État
 
 Le dépôt vit sur l'organisation (`celestia-island/himari`, master unique en squash). Les badges crates.io / docs.rs sont des entrées réservées.
-Les crates de bibliothèque sont **publiables** : `cargo publish -p himari --dry-run` empaquette, reconstruit l'archive depuis ses propres sources et atteint l'étape de téléversement, et les neuf noms de crates sont encore libres sur crates.io.
-Ce qui reste, c'est le téléversement lui-même — il exige un token de registre et il est irréversible (un yank ne libère jamais un numéro de version), donc c'est une décision délibérée et séparée plutôt qu'une étape de build.
-Les exemples, fixtures et crates d'outillage restent non publiables.
-Les dépendances internes portent déjà `version = "0.1"` avec des chemins locaux, donc le téléversement doit suivre l'ordre topologique :
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-La publication de l'outillage `himari-check` est décidée séparément. `himari-standards` et `himari-lean` dépendent de `himari-macros` et `himari-loader`, donc elles ne changent pas cet ordre.
+**0.1.0 est publié** : les huit crates de bibliothèque (`himari`, `himari-latex`, `himari-matlab`, `himari-loader`, `himari-buildhelper`, `himari-macros`, `himari-standards`, `himari-lean`) sont sur crates.io depuis le 2026-11-25, téléversées dans l'ordre topologique par la voie `publish.yml` (`CRATES_IO_API_TOKEN`, idempotente par crate). Les publications futures suivent la même voie : un tag `v*` sur master ou une réexécution `workflow_dispatch`. Les exemples, fixtures et crates d'outillage (`himari-check`, `himari-staging-budget`, `himari-gpu-verify`) restent non publiés. `cargo add himari himari-macros` est la façon prise en charge de consommer la voie des macros ; docs.rs construit la documentation de chaque crate à la publication.
 Historique de la feuille de route et des compromis : `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## Vérification
@@ -981,7 +976,7 @@ Ce sont des limites de périmètre, pas une liste de tâches presque terminée. 
 - **La validation numérique WGSL est mesurée, mais sur un périphérique logiciel** : `just gpu-verify` compile le noyau émis en SPIR-V, l'exécute via Vulkan et compare les résultats avec la voie f64 du CPU (quatre formules, seize points, pire erreur relative 3.2e-7 sur Mesa lavapipe ; échanger un seul opérateur fait échouer la voie). C'est un vrai chemin de pilote exécutant du vrai SPIR-V, donc il attrape les erreurs d'indexation, de constantes et de précédence — mais il ne mesure **pas** l'arrondi f32 spécifique au vendeur, l'ordonnancement des workgroups ni les bugs de pilote, et aucune exécution sur GPU matériel n'a été faite.
 - **La vérification Lean n'a pas réussi** : aucune chaîne d'outils n'est installée sur cet hôte, donc seuls les tests à processus factices ont tourné. Il n'y a aucune revendication que Lean accepte les
   obligations de preuve générées.
-- **La publication est une décision séparée et irréversible** : les crates de bibliothèque sont publiables et le dry-run est propre, mais rien n'a été téléversé ; le premier téléversement est le point de non-retour pour un numéro de version. Voir État.
+- **Le 0.1.0 publié est immuable** : les huit crates de bibliothèque sont sur crates.io (2026-11-25) ; un yank ne fait que masquer une version, il ne libère jamais le numéro — les correctifs 0.1.x sortent donc en `0.1.1+`, jamais en republifiant `0.1.0`. Voir État.
 - **Périmètre `no_std`** : `himari`, `himari-latex` et `himari-matlab` sont `no_std + alloc` ; les crates loader/buildhelper/macros/check ne le sont pas.
   Le code généré conserve sa propre voie libm, et les formules complexes ne font pas partie de la voie `no_std`.
 - **Pas de dérivées analytiques complexes, pas de variante f32 pour les formules complexes ou à valeur matricielle, pas de dérivée analytique pour les formules à valeur matricielle.**

@@ -943,13 +943,7 @@ WGSL 沒有表達式主體函式；主體必須是 `return expr;`，而生成器
 
 ## 狀態
 
-倉庫在組織內（`celestia-island/himari`，單一 squash master）。crates.io / docs.rs 徽章是預留的入口。
-庫 crates 是**可發布的**：`cargo publish -p himari --dry-run` 會打包、用自己的原始碼重建封存並走到上傳那一步，且全部九個 crate 名稱在 crates.io 上仍然空閒。
-剩下的是上傳本身——它需要 registry token，而且不可逆（yank 永遠不會釋放版本號），所以這是一個刻意的、獨立的決定，而不是一個建置步驟。
-範例、fixtures 與工具類 crates 維持不可發布。
-內部依賴已經帶著 `version = "0.1"` 與本機路徑，因此上傳必須按拓撲順序進行：
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`。
-`himari-check` 工具發行另行決定。`himari-standards` 與 `himari-lean` 依賴 `himari-macros` 與 `himari-loader`，所以不改變那個順序。
+倉庫在組織內（`celestia-island/himari`，單一 squash master）。**0.1.0 已發布**：全部八個庫 crates（`himari`、`himari-latex`、`himari-matlab`、`himari-loader`、`himari-buildhelper`、`himari-macros`、`himari-standards`、`himari-lean`）自 2026-11-25 起已在 crates.io 上，按拓撲順序經 `publish.yml` 車道上傳（`CRATES_IO_API_TOKEN`，每個 crate 冪等）。後續發布走同一條車道：master 上的 `v*` tag，或一次 `workflow_dispatch` 重跑。範例、fixtures 與工具類 crates（`himari-check`、`himari-staging-budget`、`himari-gpu-verify`）維持不發布。`cargo add himari himari-macros` 是消費巨集車道的受支援方式；docs.rs 在發布時建置每個 crate 的文件。
 路線圖與取捨的歷史：`_reports/math-formula-20261122/`（REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER）。
 
 ## 驗證
@@ -978,7 +972,7 @@ WGSL 的真正 naga 編譯，以及標準形式/sidecar/鎖與生成程式碼的
 - **WGSL 數值驗證已測量，但是在軟體裝置上**：`just gpu-verify` 把生成的 kernel 編譯為 SPIR-V、經 Vulkan 執行並與 f64 CPU 通道比較結果（四個公式、十六個點、最壞相對誤差 3.2e-7，Mesa lavapipe；替換任一運算子都會使該通道失敗）。那是執行真實 SPIR-V 的真實驅動路徑，因此能抓住錯誤的索引、常數與優先序——但它**不**測量特定廠商的 f32 捨入、workgroup 排程或驅動程式 bug，也沒有做過任何硬體 GPU 執行。
 - **Lean 驗證尚未成功**：本主機沒有安裝工具鏈，所以只跑了 stub-process 測試。沒有宣稱 Lean 接受
   生成的證明義務。
-- **發布是單獨的、不可逆的決定**：庫 crates 可發布且 dry-run 乾淨，但尚無任何上傳；第一次上傳就是版本號的不歸點。見「狀態」。
+- **已發布的 0.1.0 是不可變的**：八個庫 crates 已在 crates.io 上（2026-11-25）；yank 只是隱藏一個版本，永遠不會釋放版本號——所以 0.1.x 的修復以 `0.1.1+` 發布，絕不透過重新發布 `0.1.0`。見「狀態」。
 - **`no_std` 範圍**：`himari`、`himari-latex` 與 `himari-matlab` 是 `no_std + alloc`；loader/buildhelper/macros/check crates 則不是。
   生成的程式碼保留自己的 libm 車道，而複數公式不屬於 `no_std` 車道。
 - **沒有複數解析導數、沒有複數或矩陣值公式的 f32 變體、沒有矩陣值公式的解析導數。**

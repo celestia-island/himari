@@ -946,12 +946,7 @@ Además, tint (la implementación de Chrome/Dawn) y naga difieren en algunas reg
 ## Estado
 
 El repositorio vive en la organización (`celestia-island/himari`, master único con squash). Las insignias de crates.io / docs.rs son entradas reservadas.
-Las crates de biblioteca son **publicables**: `cargo publish -p himari --dry-run` empaqueta, reconstruye el archivo desde sus propias fuentes y llega al paso de subida, y los nueve nombres de crates siguen libres en crates.io.
-Lo que queda es la subida misma — necesita un token de registro y es irreversible (un yank nunca libera un número de versión), así que es una decisión deliberada y separada, no un paso de build.
-Los ejemplos, fixtures y las crates de herramientas permanecen no publicables.
-Las dependencias internas ya llevan `version = "0.1"` con rutas locales, así que la subida debe seguir el orden topológico:
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-La publicación de las herramientas `himari-check` se decide por separado. `himari-standards` y `himari-lean` dependen de `himari-macros` y `himari-loader`, así que no cambian ese orden.
+**0.1.0 está publicado**: las ocho crates de biblioteca (`himari`, `himari-latex`, `himari-matlab`, `himari-loader`, `himari-buildhelper`, `himari-macros`, `himari-standards`, `himari-lean`) están en crates.io desde el 2026-11-25, subidas en orden topológico por el carril `publish.yml` (`CRATES_IO_API_TOKEN`, idempotente por crate). Las publicaciones futuras siguen el mismo carril: una etiqueta `v*` en master o una reejecución de `workflow_dispatch`. Los ejemplos, fixtures y las crates de herramientas (`himari-check`, `himari-staging-budget`, `himari-gpu-verify`) permanecen sin publicar. `cargo add himari himari-macros` es la forma admitida de consumir el carril de macros; docs.rs construye la documentación de cada crate al publicar.
 Historial de la hoja de ruta y los compromisos: `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## Verificación
@@ -980,7 +975,7 @@ Estos son límites de alcance, no una lista de tareas casi terminada. Diga «no 
 - **La validación numérica de WGSL está medida, pero en un dispositivo de software**: `just gpu-verify` compila el kernel emitido a SPIR-V, lo ejecuta a través de Vulkan y compara los resultados con el carril f64 del CPU (cuatro fórmulas, dieciséis puntos, peor error relativo 3.2e-7 en Mesa lavapipe; intercambiar un solo operador hace fallar el carril). Es una ruta de driver real ejecutando SPIR-V real, así que atrapa indexación, constantes y precedencia incorrectas — pero **no** mide el redondeo f32 específico del vendedor, la planificación de workgroups ni los bugs de driver, y no se ha hecho ninguna ejecución en GPU de hardware.
 - **La verificación con Lean no ha tenido éxito**: no hay ninguna cadena de herramientas instalada en este host, así que solo se ejecutaron las pruebas de procesos simulados. No hay reivindicación de que Lean acepte
   las obligaciones de demostración generadas.
-- **La publicación es una decisión separada e irreversible**: las crates de biblioteca son publicables y el dry-run está limpio, pero no se ha subido nada; la primera subida es el punto de no retorno para un número de versión. Véase Estado.
+- **El 0.1.0 publicado es inmutable**: las ocho crates de biblioteca están en crates.io (2026-11-25); un yank solo oculta una versión, nunca libera el número — así que las correcciones 0.1.x salen como `0.1.1+`, nunca republicando `0.1.0`. Véase Estado.
 - **Alcance `no_std`**: `himari`, `himari-latex` y `himari-matlab` son `no_std + alloc`; las crates loader/buildhelper/macros/check no lo son.
   El código generado conserva su propio carril libm, y las fórmulas complejas no forman parte del carril `no_std`.
 - **Sin derivadas analíticas complejas, sin variante f32 para fórmulas complejas o con valor matricial, sin derivada analítica para fórmulas con valor matricial.**

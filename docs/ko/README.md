@@ -946,13 +946,7 @@ WGSL에는 식 본문 함수가 없고 본문은 `return expr;`이어야 하는�
 
 ## 상태
 
-저장소는 조직에 있습니다(`celestia-island/himari`, 단일 squash master). crates.io / docs.rs 배지는 예약된 진입점입니다.
-라이브러리 크레이트는 **게시 가능**합니다: `cargo publish -p himari --dry-run`은 패키징하고, 자체 소스로 아카이브를 다시 빌드하여 업로드 단계에 도달하며, 아홉 크레이트 이름은 모두 crates.io에서 아직 비어 있습니다.
-남은 것은 업로드 자체입니다 — registry token이 필요하고 되돌릴 수 없으므로(yank는 버전 번호를 결코 해제하지 않음) 빌드 단계가 아니라 의도적인 별개의 결정입니다.
-예제, 픽스처, 도구 크레이트는 게시 불가로 남습니다.
-내부 의존성은 이미 로컬 경로와 함께 `version = "0.1"`을 달고 있으므로, 업로드는 위상 순서를 따라야 합니다:
-`himari → himari-latex / himari-matlab → himari-loader → himari-buildhelper → himari-macros`.
-`himari-check` 도구 릴리스는 따로 결정됩니다. `himari-standards`와 `himari-lean`은 `himari-macros`와 `himari-loader`에 의존하므로 그 순서를 바꾸지 않습니다.
+저장소는 조직에 있습니다(`celestia-island/himari`, 단일 squash master). **0.1.0이 게시되었습니다**: 여덟 개의 라이브러리 크레이트(`himari`, `himari-latex`, `himari-matlab`, `himari-loader`, `himari-buildhelper`, `himari-macros`, `himari-standards`, `himari-lean`)가 2026-11-25부터 crates.io에 있으며, 위상 순서대로 `publish.yml` 레인을 통해 업로드되었습니다(`CRATES_IO_API_TOKEN`, 크레이트별로 멱등). 이후 릴리스도 같은 레인을 따릅니다: master의 `v*` 태그 또는 `workflow_dispatch` 재실행. 예제, 픽스처, 도구 크레이트(`himari-check`, `himari-staging-budget`, `himari-gpu-verify`)는 게시되지 않은 채로 남습니다. `cargo add himari himari-macros`가 매크로 레인을 사용하는 지원되는 방법입니다. docs.rs는 게시 시 각 크레이트의 문서를 빌드합니다.
 로드맵과 트레이드오프의 이력: `_reports/math-formula-20261122/` (REPORT / SPIKE-S0 / SYMBOLS-AND-PAPER).
 
 ## 검증
@@ -981,7 +975,7 @@ cargo test -p himari-example-common --offline
 - **WGSL 수치 검증은 측정되었지만 소프트웨어 장치에서**: `just gpu-verify`는 생성된 커널을 SPIR-V로 컴파일하고, Vulkan을 통해 실행하여 f64 CPU 레인과 비교합니다(네 공식, 열여섯 점, 최악 상대 오차 3.2e-7, Mesa lavapipe. 연산자 하나만 바꾸어도 레인은 실패합니다). 이것은 실제 SPIR-V를 실행하는 실제 드라이버 경로이므로 잘못된 인덱싱, 상수, 우선순위를 잡아 내지만, 벤더별 f32 반올림, 워크그룹 스케줄링, 드라이버 버그는 **측정하지 않으며**, 하드웨어 GPU 실행은 이루어지지 않았습니다.
 - **Lean 검증은 성공하지 못했습니다**: 이 호스트에는 툴체인이 설치되어 있지 않아 스텁 프로세스 테스트만 돌았습니다. Lean이
   생성된 증명 의무를 수용한다는 주장은 없습니다.
-- **게시는 별개의, 되돌릴 수 없는 결정입니다**: 라이브러리 크레이트는 게시 가능하고 dry-run도 깨끗하지만, 아직 아무것도 업로드되지 않았습니다. 첫 업로드가 버전 번호의 불귀점입니다. 상태를 보십시오.
+- **게시된 0.1.0은 불변입니다**: 여덟 개의 라이브러리 크레이트가 crates.io에 있습니다(2026-11-25). yank는 버전을 숨길 뿐, 버전 번호를 결코 해제하지 않습니다 — 따라서 0.1.x 수정 사항은 `0.1.1+`로 게시되며, `0.1.0`을 다시 게시하는 일은 결코 없습니다. 상태를 보십시오.
 - **`no_std` 범위**: `himari`, `himari-latex`, `himari-matlab`은 `no_std + alloc`이고, 로더/buildhelper/매크로/check 크레이트는 아닙니다.
   생성 코드는 자체 libm 레인을 유지하며, 복소 수식은 `no_std` 레인의 일부가 아닙니다.
 - **복소 해석적 도함수 없음, 복소나 행렬값 수식의 f32 변형 없음, 행렬값 수식의 해석적 도함수 없음.**
