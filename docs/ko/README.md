@@ -640,13 +640,14 @@ crate 의 모든 실패는 하나의 enum `himari::Error` 입니다. 문자열 �
 `anyhow::Context` 를 거친 뒤에도 `downcast_ref::<himari::Error>()` 로 코드를 되찾는 것, 그리고
 "같은 오류가 아홉 언어에서 서로 다르게 렌더링되지만 코드는 항상 동일"하다는 규칙.
 
-아직 카탈로그에 없는 메시지는 `Error::Message(String)` 에 남습니다. 어떤 언어에서도 그대로 출력되므로
-단계적 이전이 **타입으로** 드러납니다(번역된 척하지 않습니다). 이 부채는 **산문이 아니라 게이트**로 잽니다: `python3 scripts/staging_budget.py` 는 워크스페이스의 모든 생산 트리(`packages/`, `examples/`, `tools/`)의 미카탈로그 생산자(`Error::from(`, `Error::Message(`, 프런트엔드의 `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`)를 테스트와 카탈로그 자체를 제외하고 세며, 기록된 상한(상한은 `tools/staging-budget/src/ceiling.txt`에 기록되며 내려가기만 합니다)을 넘으면 실패합니다. 게이트는 AST 순회(`tools/staging-budget`, `syn` 기반)이므로 줄 배치·공백·주석에 의존하지 않으며, `matches!(e, Error::Message(m) if …)` 같은 **패턴**이 생성으로 오판되지 않습니다. 상한은 내려가기만 하며 이는 강제됩니다: CI 는 `--against-git` 으로 게이트를 실행해 `HEAD` 의 `tools/staging-budget/src/ceiling.txt` 를 읽고, 작업 트리의 상한이 더 높으면 실패합니다. 38개 변형 전부는 `catalogue_completeness_tests` 가 고정합니다——각 변형을 구성하고 9개 언어로 렌더링합니다(비어 있지 않음, `{n}` 누출 없음). LSP 퀵픽스 *제목*은 여전히 중국어입니다; 진단은 현지화되어 있습니다.
+아직 카탈로그에 없는 메시지는 `Error::Message(String)` 에 남습니다. 어떤 언어에서도 그대로 출력되므로 단계적 이전이 **타입으로** 드러납니다(번역된 척하지 않습니다). 이 부채는 **산문이 아니라 게이트**로 잽니다——그리고 그 부채는 현재 0입니다:
 
 ```text
 python3 scripts/staging_budget.py                # counts + ceiling
-python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs HEAD
+python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs the merge base
 ```
+
+게이트는 AST 순회(`tools/staging-budget`, `syn` 기반)이므로 줄 배치·공백·주석에 의존하지 않으며, `matches!(e, Error::Message(m) if …)` 같은 **패턴**이 생성으로 오판되지 않습니다. 게이트는 워크스페이스의 모든 생산 트리(`packages/`, `examples/`, `tools/`)에 걸쳐 세 가지 계열의 열두 버킷을 셉니다: 여섯 리터럴 생성 형태(`Error::from(`, `Error::Message(`, 프런트엔드의 `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`)와 값 세탁 퍼널(런타임 값을 payload 로 받는 `plain` / `new`, 그리고 함수 참조로 전달되는 `FrontError::plain`, 둘 다 저장소 전체)과, 카탈로그 crate 자체 내부의 문자열 스테이징 형태(스테이징 문자열을 만드는 `ok_or`/`ok_or_else`/`map_err`, 그리고 `Err(format!(…))`). 테스트와 카탈로그 아래에서만 컴파일되는 항목은 건너뜁니다. 문자열 payload 를 지닌 카탈로그화된 변형(예: `Error::SyntaxError(text)`)은 스테이징이 아니며 세지 않습니다. 합계가 기록된 상한을 넘으면 게이트는 실패합니다(상한은 `tools/staging-budget/src/ceiling.txt`에 기록되며 내려가기만 합니다; 현재 `0`). 상한은 내려가기만 하며 이는 강제됩니다: CI 와 `just verify` 는 `--against-git` 으로 게이트를 실행해 **원격 트렁크와의 머지 베이스**에 있는 `tools/staging-budget/src/ceiling.txt` 를 읽고, 작업 트리의 상한이 더 높으면 실패합니다 — 따라서 상한을 올린 변경에 슬쩍 섞어 넣는 방식으로 새 지점을 추가할 수 없습니다. 위의 맨 명령은 카운트만 확인합니다. 51개 변형 전부는 `catalogue_completeness_tests` 가 고정합니다——50개 카탈로그 변형과 스테이징용 `Message` 를 각각 구성하고 9개 언어로 렌더링합니다(비어 있지 않음, `{n}` 누출 없음). LSP 퀵픽스 *제목*은 여전히 중국어입니다; 진단은 현지화되어 있습니다.
 
 ### 편집기 통합 (LSP)
 
@@ -938,8 +939,7 @@ WGSL에는 식 본문 함수가 없고 본문은 `return expr;`이어야 하는�
 | 런타임 크기 선형 계 | 런타임 레인 (`_matrix`/`_vector` decl) | `solve(A,b)`가 검사됨(rcond + 잔차); `Result` 반환 |
 | 차원 탐색 | `himari-eval --groups` | 버킹엄 Π 군: 레이놀즈 수를 손으로 유도할 필요 없음 |
 
-> 일부 중국어 텍스트도 반대편에 남아 있습니다: 생성 코드의 doc 주석과 진단 문자열은 이 레인의 메시지가
-> 현재 중국어로 쓰여 있기 때문입니다(위에 인용한 doc 주석을 보십시오). 이들은 한 줄 문자열 리터럴입니다.
+> 여전히 중국어를 지니고 있는 쪽은 *반대편*입니다: 생성 코드의 doc 주석, proc-macro 의 `FORMULA-ERROR` 진단, 그리고 LSP 퀵픽스 *제목* — 어느 것도 오류 카탈로그 경로가 아닙니다. 카탈로그의 스테이징 부채는 0이며, 위의 staging-budget 게이트(열두 생성 계열, 머지 베이스 기준으로 강제되는 상한)가 그것을 0으로 지켜 줍니다.
 
 **캐럿이 붙은 오류**, **잘못 쓴 함수 이름에 대한 제안**(`closest_func`, 편집 거리 ≤ 2),
 **보이지 않는 문자 거부**, **깊이/단계 제한** — 이것들은 장식이 아니라 "동료가 감히 이걸 쓰게 하려면" 필요한 기준선입니다.

@@ -637,13 +637,14 @@ crate 裡每個失敗都是同一個 enum `himari::Error`。它不是一堆字�
 `anyhow::Context` 之後仍能 `downcast_ref::<himari::Error>()` 拿回穩定碼，以及「同一錯誤在九語下
 各不相同、而碼始終不變」。
 
-尚未編目的訊息保留在 `Error::Message(String)`：它在任何語言下都原樣輸出，所以分期遷移在**型別上**
-可見，而不是假裝已翻譯。這筆債**由門禁計量**而非散文：`python3 scripts/staging_budget.py` 統計工作區所有生產樹（`packages/`、`examples/`、`tools/`）裡全部未編目的生產者（`Error::from(`、`Error::Message(`、前端的 `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`），排除測試與目錄本身，超過記錄上限（上限記錄在 `tools/staging-budget/src/ceiling.txt`，只降不升）即失敗。門禁是一次 AST 遍歷（`tools/staging-budget`，基於 `syn`），計數不依賴行佈局、空白或註解，`matches!(e, Error::Message(m) if …)` 這類**模式**絕不會被誤判為建構。上限只能下調，且這一點是強制的：CI 以 `--against-git` 執行門禁，從 `HEAD` 讀取 `tools/staging-budget/src/ceiling.txt`，工作樹的上限更高即失敗。全部 38 個變體由 `catalogue_completeness_tests` 釘住——逐一建構並在九語下渲染（非空、無洩漏的 `{n}`）。LSP 快速修復的*標題*仍是中文；其診斷已本地化。
+`Error::Message(String)` 保留給永不進入目錄的訊息：它在任何語言下都原樣輸出。它所代表的暫存債**由門禁計量**而非散文——而這筆債目前為零：
 
 ```text
 python3 scripts/staging_budget.py                # counts + ceiling
-python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs HEAD
+python3 scripts/staging_budget.py --against-git  # also: the ceiling may only go down vs the merge base
 ```
+
+門禁是一次 AST 遍歷（`tools/staging-budget`，基於 `syn`），計數不依賴行佈局、空白或註解，`matches!(e, Error::Message(m) if …)` 這類**模式**絕不會被誤判為建構。門禁對工作區每個生產樹（`packages/`、`examples/`、`tools/`）統計三個家族的十二個桶：六種字面建構形態（`Error::from(`、`Error::Message(`、前端的 `FrontError::plain("…")` / `plain(format!(…))` / `FrontError::new(…, "…")`）、價值洗白漏斗（帶執行期值載荷的 `plain` / `new`，以及作為函式參照傳入的 `FrontError::plain`，兩者皆為全儲存庫範圍）、以及目錄 crate 自身內部的字串暫存形態（產生暫存字串的 `ok_or`/`ok_or_else`/`map_err`，以及 `Err(format!(…))`）。僅在測試與目錄下編譯的項目被跳過；帶字串載荷的已編目變體（如 `Error::SyntaxError(text)`）不是暫存，不計入。若總數超過記錄上限，門禁即失敗（上限記錄在 `tools/staging-budget/src/ceiling.txt`，只降不升；目前為 `0`）。上限只能下調，且這一點是強制的：CI（及 `just verify`）以 `--against-git` 執行門禁，讀取**與遠端 trunk 的 merge base**處的 `tools/staging-budget/src/ceiling.txt`，工作樹的上限更高即失敗——所以新點位不可能隨調高的上限一起混進來。上面的裸命令只檢查計數。全部 51 個變體由 `catalogue_completeness_tests` 釘住——50 個目錄變體加上暫存用的 `Message`，逐一建構並在九語下渲染（非空、無洩漏的 `{n}`）。LSP 快速修復的*標題*仍是中文；其診斷已本地化。
 
 ### 編輯器整合（LSP）
 
@@ -935,8 +936,7 @@ WGSL 沒有表達式主體函式；主體必須是 `return expr;`，而生成器
 | 執行期尺寸的線性方程組 | 執行期車道（`_matrix`/`_vector` 宣告） | `solve(A,b)` 有檢查（rcond + 殘差）；回傳 `Result` |
 | 量綱探索 | `himari-eval --groups` | Buckingham Π 群：不用手推雷諾數 |
 
-> 另一邊也還有些中文殘留：生成程式碼的 doc comment 與診斷字串，因為這條車道的
-> 訊息目前以中文撰寫（見上面引用的 doc comment）。這些是單行字串字面量。
+> 仍帶中文的是*另一邊*：生成程式碼的 doc comment、proc-macro 的 `FORMULA-ERROR` 診斷、以及 LSP 快速修復的標題——其中沒有任何一項是錯誤目錄的路徑。目錄的暫存債為零，而上面的 staging-budget 門禁（十二個建構家族、上限對照 merge base 強制執行）正是把它守在零的原因。
 
 **帶脫字符的錯誤**、**函式名拼錯的建議**（`closest_func`，編輯距離 ≤ 2）、
 **拒絕不可見字元**、**深度/步數上限**——這些不是裝飾，而是「敢讓同事用這個」的門檻。
