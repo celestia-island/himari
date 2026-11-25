@@ -1893,14 +1893,14 @@ fn hardening_rows(rows: &mut Vec<Row>) {
     let cubic = himari_matlab::parse("decl { x : d [1]; } roots(x ^ 3 + 1, x)");
     let cmsg = match cubic {
         Ok(_) => "<解析竟然通过>".to_string(),
-        Err(e) => format!("{e:?}"),
+        Err(e) => e.in_locale(himari::i18n::Locale::En).msg,
     };
     push(
         rows,
         "hard-roots-cubic-rejected",
         "3 次拒绝".into(),
         cmsg.clone(),
-        cmsg.contains("3 次"),
+        cmsg.contains("degree 1–2"),
         "拒绝即特性：不给一份「看起来精确」的 Cardano 近似".into(),
     );
 

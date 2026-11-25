@@ -2293,8 +2293,9 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
                 })?;
                 let value = eval_value(&expanded, env)?;
                 if name == "roots" && !uses_complex(e) && value.is_complex() {
-                    return Err(Error::from(
-                        "quadratic has no real roots; use an explicit `j` formula for the complex lane",
+                    return Err(Error::UnsupportedOperation(
+                        "the quadratic has no real roots; write the complex lane explicitly with `j`"
+                            .into(),
                     ));
                 }
                 return Ok(value);
@@ -4712,9 +4713,10 @@ fn lin_coeffs(e: &Expr, var: &str) -> Result<(Expr, Expr), Error> {
             // a legal function "taking the solved-for quantity as an input" that silently returned
             // wrong values.
             if has_var(y, var) {
-                return Err(Error::from(format!(
-                    "`{var}` 出现在指数里（非线性）：线性求解不适用"
-                )));
+                return Err(Error::NonlinearEquation {
+                    name: var.to_string(),
+                    why: "it appears in an exponent".into(),
+                });
             }
             if !has_var(x, var) {
                 (zero(), e.clone())
@@ -4742,7 +4744,10 @@ fn lin_coeffs(e: &Expr, var: &str) -> Result<(Expr, Expr), Error> {
         }
         _ => {
             if has_var(e, var) {
-                return Err(Error::from(format!("含 `{var}` 的这种结构不支持线性求解")));
+                return Err(Error::NonlinearEquation {
+                    name: var.to_string(),
+                    why: "this construct is not supported by the linear solver".into(),
+                });
             }
             (zero(), e.clone())
         }
@@ -4791,9 +4796,8 @@ pub fn solve_linear(e: &Expr, var: &str) -> Result<Expr, Error> {
         || has_matrix_literal(&a)
         || has_matrix_literal(&b)
     {
-        return Err(Error::from(
-            "方程系数是矩阵值：`solve` 只解标量方程；矩阵方程请写 `inv(A) * b`，\
-             标量方程组请用 `solve([eq1, eq2], [x1, x2])` 列表形态",
+        return Err(Error::MatrixCoefficient(
+            "`solve` solves scalar equations only; write matrix equations as `inv(A) * b`, or pass a list of scalar equations".into(),
         ));
     }
     // a identically zero ⇒ var is not in the equation at all (identity or contradiction). Simplify
@@ -4801,9 +4805,10 @@ pub fn solve_linear(e: &Expr, var: &str) -> Result<Expr, Error> {
     // the var coefficient inside `a + b` is a foldable shape like `0 + 0`.
     if let Expr::Num(v) = simplify(&a) {
         if v == 0.0 {
-            return Err(Error::from(format!(
-                "方程里没有 `{var}` 的一次项：无从求解"
-            )));
+            return Err(Error::NonlinearEquation {
+                name: var.to_string(),
+                why: "the equation has no linear term in it".into(),
+            });
         }
     }
     Ok(simplify(&neg(div(b, a))))
@@ -4972,9 +4977,10 @@ fn lin_coeffs_multi(e: &Expr, vars: &[String]) -> Result<(Vec<Expr>, Expr), Erro
         E::Mul(x, y) => match (hit(x), hit(y)) {
             (false, false) => (zeros(), e.clone()),
             (true, true) => {
-                return Err(Error::from(
-                    "乘法两侧都含未知数（非线性）：线性求解不适用".to_string(),
-                ))
+                return Err(Error::NonlinearEquation {
+                    name: "the product".into(),
+                    why: "both factors contain the unknown".into(),
+                })
             }
             // The pure-coefficient side multiplies into every unknown's coefficient and the
             // constant term
@@ -4995,9 +5001,10 @@ fn lin_coeffs_multi(e: &Expr, vars: &[String]) -> Result<(Vec<Expr>, Expr), Erro
         },
         E::Div(x, y) => {
             if hit(y) {
-                return Err(Error::from(
-                    "未知数出现在分母（非线性）：线性求解不适用".to_string(),
-                ));
+                return Err(Error::NonlinearEquation {
+                    name: "the equation".into(),
+                    why: "the unknown appears in a denominator".into(),
+                });
             }
             let (mut a, b) = lin_coeffs_multi(x, vars)?;
             for k in 0..n {
@@ -5013,18 +5020,20 @@ fn lin_coeffs_multi(e: &Expr, vars: &[String]) -> Result<(Vec<Expr>, Expr), Erro
             // linear term in that equation it slipped through, and the solved expression did not
             // satisfy the original equation at all.
             if hit(y) {
-                return Err(Error::from(
-                    "未知数出现在指数里（非线性）：线性求解不适用".to_string(),
-                ));
+                return Err(Error::NonlinearEquation {
+                    name: "the equation".into(),
+                    why: "the unknown appears in an exponent".into(),
+                });
             }
             if !hit(x) {
                 (zeros(), e.clone())
             } else if matches!(y.as_ref(), E::Num(m) if *m == 1.0) {
                 lin_coeffs_multi(x, vars)?
             } else {
-                return Err(Error::from(
-                    "未知数出现在幂里（非线性）：线性求解不适用".to_string(),
-                ));
+                return Err(Error::NonlinearEquation {
+                    name: "the equation".into(),
+                    why: "the unknown appears in a power".into(),
+                });
             }
         }
         E::Call(name, args) => {
@@ -5040,7 +5049,10 @@ fn lin_coeffs_multi(e: &Expr, vars: &[String]) -> Result<(Vec<Expr>, Expr), Erro
         }
         _ => {
             if hit(e) {
-                return Err(Error::from("含未知数的这种结构不支持线性求解".to_string()));
+                return Err(Error::NonlinearEquation {
+                    name: "the equation".into(),
+                    why: "this construct is not supported by the linear solver".into(),
+                });
             }
             (zeros(), e.clone())
         }
@@ -5097,24 +5109,30 @@ fn mat_var_names(e: &Expr) -> Option<Vec<String>> {
 #[allow(clippy::needless_range_loop)]
 pub fn solve_system(eqs: &[Expr], vars: &[String]) -> Result<Expr, Error> {
     if vars.is_empty() {
-        return Err(Error::from(
-            "未知数列表为空：至少要有一个未知数".to_string(),
+        return Err(Error::InvalidInput(
+            "the list of unknowns is empty; at least one is required".into(),
         ));
     }
     if eqs.is_empty() {
-        return Err(Error::from("方程列表为空：至少要有一条方程".to_string()));
+        return Err(Error::InvalidInput(
+            "the list of equations is empty; at least one is required".into(),
+        ));
     }
     let mut seen = BTreeSet::new();
     for v in vars {
         if !seen.insert(v.as_str()) {
-            return Err(Error::from(format!("未知数 `{v}` 在列表里出现了两次")));
+            return Err(Error::InvalidInput(format!(
+                "the unknown `{v}` appears twice in the list"
+            )));
         }
     }
     let (m, n) = (eqs.len(), vars.len());
     // Augmented matrix [A | −b]: eq_i = Σ_j a_ij·v_j + b_i = 0 ⟺ A·v = −b
     let mut aug: Vec<Vec<Expr>> = Vec::with_capacity(m);
     for (i, eq) in eqs.iter().enumerate() {
-        let (a, b) = lin_coeffs_multi(eq, vars).map_err(|e| format!("第 {} 条方程：{e}", i + 1))?;
+        // Propagate the typed error: wrapping it in a `String` here (with the equation index)
+        // downgraded every catalogue variant back to `Message`.
+        let (a, b) = lin_coeffs_multi(eq, vars)?;
         // Matrix-valued coefficients: the solution would be a matrix division, and the scalar lane
         // would generate code like
         // `f64 / Vec<Vec<f64>>` that does not compile — the same guard as the single-variable lane
@@ -5212,8 +5230,8 @@ pub fn poly_coeffs_vec(e: &Expr, var: &str) -> Result<Expr, Error> {
     }
     let out: Vec<Expr> = trimmed.into_iter().map(|c| simplify(&c)).collect();
     if out.len() == 1 && matches!(out[0], Expr::Num(v) if v == 0.0) {
-        return Err(Error::from(format!(
-            "`poly_coeffs`：`{var}` 的零多项式（没有可报告的系数）"
+        return Err(Error::InvalidInput(format!(
+            "`poly_coeffs`: `{var}` is a zero polynomial, so there are no coefficients to report"
         )));
     }
     let _ = n;
@@ -5262,16 +5280,18 @@ pub fn solve_poly(e: &Expr, var: &str) -> Result<Expr, Error> {
     for (k, coef) in c.iter().enumerate() {
         let cs = simplify(coef);
         if is_matrix_value(&cs) {
-            return Err(Error::from(format!(
-                "`roots` 的第 {k} 次系数是矩阵值：多项式求根只做标量系数；\
-                 矩阵方程请写 `inv(A) * b`"
+            return Err(Error::MatrixCoefficient(format!(
+                "`roots`: the degree-{k} coefficient is matrix-valued; root finding handles scalar coefficients only"
             )));
         }
         normalized.push(cs);
     }
     c = normalized;
     match c.len() - 1 {
-        0 => Err(Error::from(format!("方程里没有 `{var}`：无从求根"))),
+        0 => Err(Error::NonlinearEquation {
+                name: var.to_string(),
+                why: "the equation does not contain it, so there is nothing to solve for".into(),
+            }),
         // Degree 1: `a·x + b = 0 → x = −b/a` (the same math as `solve_linear`).
         // Note that the **normalized coefficients** are used here rather than handing the original
         // expression to solve_linear: the original may
@@ -5297,10 +5317,9 @@ pub fn solve_poly(e: &Expr, var: &str) -> Result<Expr, Error> {
             let r2 = Expr::Call("__quad_root_2".into(), vec![a, b, c0]);
             Ok(Expr::Mat(vec![vec![r1], vec![r2]]))
         }
-        n => Err(Error::from(format!(
-            "`roots` 只解 1–2 次方程（这次是 {n} 次）：3 次以上的闭式解在浮点下不稳定，\
-             本仓不给「看起来精确」的近似 —— 请先降次，或把系数算成数值后用数值求根"
-        ))),
+        n => Err(Error::InvalidInput(format!(
+                "`roots` solves degree 1–2 only (got degree {n}): closed forms above that are unstable in floating point, and this crate does not offer a look-exact approximation — reduce the degree first, or compute the coefficients numerically and use a numeric root finder"
+            ))),
     }
 }
 
@@ -5598,14 +5617,23 @@ pub fn numeric_roots(coeffs: &[f64]) -> Result<Vec<C>, Error> {
         c.pop();
     }
     if c.iter().all(|v| *v == 0.0) {
-        return Err(Error::from("零多项式：任何数都是根，没有确定的解集"));
+        return Err(Error::InvalidInput(
+            "zero polynomial: every number is a root, so the solution set is not determined".into(),
+        ));
     }
     if c.iter().any(|v| !v.is_finite()) {
-        return Err(Error::from("系数含 inf/NaN：无法数值求根".to_string()));
+        return Err(Error::NonFiniteValue(
+            "the polynomial coefficients contain inf/NaN, so numeric root finding is impossible"
+                .into(),
+        ));
     }
     let n = c.len() - 1;
     match n {
-        0 => return Err(Error::from("常数多项式（0 次）没有根".to_string())),
+        0 => {
+            return Err(Error::InvalidInput(
+                "a constant polynomial (degree 0) has no roots".into(),
+            ))
+        }
         1 => {
             // The quotient must be finite: even when each coefficient is finite, `c0/c1` can still
             // overflow to inf
@@ -5614,16 +5642,18 @@ pub fn numeric_roots(coeffs: &[f64]) -> Result<Vec<C>, Error> {
             // iteration path.
             let r = -c[0] / c[1];
             if !r.is_finite() {
-                return Err(Error::from(
-                    "一次方程的解溢出（系数比值超出 f64 范围）：请缩放变量后重试",
-                ));
+                return Err(Error::NonFiniteValue(
+            "the solution of the linear equation overflows (the coefficient ratio exceeds the f64 range); rescale the variable and retry".into(),
+        ));
             }
             return Ok(vec![C::new(r, 0.0)]);
         }
         _ => {}
     }
     if n > 64 {
-        return Err(Error::from(format!("次数 {n} 超过数值求根上限 64")));
+        return Err(Error::InvalidInput(format!(
+            "degree {n} exceeds the numeric root-finding limit of 64"
+        )));
     }
     let lead = c[n];
     let a: Vec<f64> = c.iter().map(|v| v / lead).collect(); // make monic, avoiding magnitude overflow
@@ -5696,9 +5726,9 @@ pub fn numeric_roots(coeffs: &[f64]) -> Result<Vec<C>, Error> {
                 // the other side for NaN,
                 // so a NaN step used to be taken as "converged" and the function returned Ok(all
                 // NaN) — far worse than an error.
-                return Err(Error::from(
-                    "数值求根发散（迭代中出现 inf/NaN）：多项式可能病态 —— 请缩放变量或降次",
-                ));
+                return Err(Error::RootFindingFailed {
+                    reason: "the iteration produced inf/NaN (divergence)".into(),
+                });
             }
             // The criterion is relative to the **magnitude of the roots**, not to 1: the latter,
             // for roots of order 1e-50,
@@ -5723,9 +5753,9 @@ pub fn numeric_roots(coeffs: &[f64]) -> Result<Vec<C>, Error> {
         }
     }
     if !converged {
-        return Err(Error::from(
-            "数值求根未收敛（1000 次迭代）：多项式可能病态 —— 请缩放变量或降次",
-        ));
+        return Err(Error::RootFindingFailed {
+            reason: "it did not converge within 1000 iterations".into(),
+        });
     }
 
     // Newton finish: in the simple-root case it goes straight to machine precision; multiple roots
@@ -5795,10 +5825,10 @@ pub fn numeric_roots(coeffs: &[f64]) -> Result<Vec<C>, Error> {
             p.abs()
         };
         if rel > 1e-8 {
-            return Err(Error::from(format!(
-                "数值求根残差过大（相对残差 {rel:.3e}）：结果不可信 —— \
-                 请缩放变量或降次，不要拿它当真值"
-            )));
+            return Err(Error::UnstableResidual {
+                residual: rel,
+                limit: 1e-8,
+            });
         }
     }
 
@@ -6765,13 +6795,13 @@ pub fn recognize_pattern(p: &MatPattern) -> Result<MatrixKind, Error> {
                     c: c1,
                 });
             }
-            return Err(Error::from(
-                "这个 4×4 模式看起来像三对角，但主/次对角不是同一表达式，或右上/左下角不是 0",
-            ));
+            return Err(Error::InvalidInput(
+            "this 4×4 pattern looks tridiagonal, but the main and off-diagonals are not the same expression, or the far corners are not 0".into(),
+        ));
         }
     }
 
-    Err(Error::from(format!(
+    Err(Error::InvalidInput(format!(
         "模式矩阵（{m}×{n}）不匹配任何内置形状。支持：\n  \
          identity(n)                  [1 ⋯ 0; ⋮ 1 ⋮; 0 ⋯ 1]\n  \
          diag(d, n) / diag_v(d[i], n) 对角同一表达式 / 对角是索引序列\n  \
@@ -8005,8 +8035,12 @@ mod tests {
             // An error is acceptable (degree 20 is a deliberately hard case), but it **must not
             // return NaN**
             Err(e) => {
+                assert!(
+                    matches!(e, Error::RootFindingFailed { .. }),
+                    "a failed run must be catalogued: {e:?}"
+                );
                 let text = e.render(i18n::Locale::En);
-                assert!(text.contains("发散") || text.contains("未收敛"), "{text}")
+                assert!(text.contains("root finding failed"), "{text}")
             }
         }
 
@@ -8082,10 +8116,9 @@ mod tests {
         }
         // A linear equation overflow must error (it once returned Ok(-inf))
         let err = numeric_roots(&[1e300, 1e-300]).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("溢出"), "{text}");
-        let text = err.to_string();
-        assert!(text.contains("缩放"), "{text}");
+        assert_eq!(err.code(), "non-finite-value", "{err}");
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("overflows") && en.contains("rescale"), "{en}");
     }
 
     #[test]
@@ -8187,10 +8220,9 @@ mod tests {
         // Degree 3: rejected explicitly and the degree reported (no Cardano approximation)
         let cubic = add(pow(var("x"), num(3.0)), num(1.0));
         let err = solve_poly(&cubic, "x").unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("3 次"), "{text}");
-        let text = err.to_string();
-        assert!(text.contains("1–2 次"), "{text}");
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        let en = err.render(i18n::Locale::En);
+        assert!(en.contains("degree 3") && en.contains("degree 1–2"), "{en}");
         // Non-polynomial: x inside a function argument / in the denominator / at a non-integer
         // power
         for bad in [
@@ -8204,8 +8236,11 @@ mod tests {
         }
         // The equation has no x
         let err = solve_poly(&add(var("a"), var("b")), "x").unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("没有"), "{text}");
+        assert_eq!(err.code(), "nonlinear-equation", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("does not contain"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -8229,16 +8264,18 @@ mod tests {
             &["x".into(), "y".into()],
         )
         .unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("非线性"), "{text}");
+        assert_eq!(err.code(), "nonlinear-equation", "{err}");
         // Duplicate unknown names
         let err = solve_system(&[sub(x.clone(), num(1.0))], &["x".into(), "x".into()]).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("两次"), "{text}");
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(err.render(i18n::Locale::En).contains("twice"), "{err}");
         // Empty list
         let err = solve_system(&[sub(x.clone(), num(1.0))], &[]).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("至少"), "{text}");
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(i18n::Locale::En).contains("at least one"),
+            "{err}"
+        );
         // A numerically redundant equation (a third one of the form 2·eq1): after elimination to
         // zero it should still give a unique solution
         let eq1 = sub(add(x.clone(), y.clone()), num(3.0));
@@ -8270,8 +8307,14 @@ mod tests {
             &["x".into()],
         )
         .unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("指数"), "{text}");
+        match &err {
+            // The multi-variable lane identifies the equation, not one variable, so only the
+            // reason is pinned here.
+            Error::NonlinearEquation { why, .. } => {
+                assert!(why.contains("exponent"), "{why}");
+            }
+            other => panic!("{other:?}"),
+        }
         // The single-variable lane has the same disease (a pre-existing defect, fixed in the same
         // place)
         let err = solve_linear(
@@ -8279,8 +8322,13 @@ mod tests {
             "x",
         )
         .unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("指数"), "{text}");
+        assert!(
+            matches!(
+                &err,
+                Error::NonlinearEquation { why, .. } if why.contains("exponent")
+            ),
+            "{err}"
+        );
         // But `2^y` contains no x: solving for x is itself legal (x = 2^y is the true solution)
         let ok = solve_system(&[sub(x.clone(), pow(num(2.0), y.clone()))], &["x".into()])
             .expect("2^y 不含 x，应可解");
@@ -8659,8 +8707,7 @@ mod tests {
             panic!("构造的应是 Call");
         };
         let err = solve_linear(&mat_args[0], "x").unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("矩阵值"), "{text}");
+        assert_eq!(err.code(), "matrix-coefficient", "{err}");
     }
 
     #[test]
@@ -9294,7 +9341,7 @@ mod tests {
         }
         assert!(matches!(
             recognize_pattern(&bad).unwrap_err(),
-            Error::Message(ref m) if m.contains("三对角")
+            Error::InvalidInput(ref why) if why.contains("tridiagonal")
         ));
     }
 
