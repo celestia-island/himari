@@ -2261,7 +2261,11 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             };
             if matches!(name.as_str(), "__quad_root_1" | "__quad_root_2") {
                 if args.len() != 3 {
-                    return Err(Error::from(format!("内部二次根算子 `{name}` 需要三个系数")));
+                    return Err(Error::FunctionArity {
+                name: name.clone(),
+                expected: 3,
+                got: args.len(),
+            });
                 }
                 let a = as_c(&eval_value(&args[0], env)?, "the quadratic coefficient")?;
                 let b = as_c(&eval_value(&args[1], env)?, "the linear coefficient")?;
@@ -2397,10 +2401,10 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             let lo = eval_i(lower, env)?;
             let hi = eval_i(upper, env)?;
             if hi >= lo && (hi - lo) as u64 > MAX_STEPS {
-                return Err(Error::from(format!(
-                    "求和区间 {} 次超过上限 {MAX_STEPS}：求和是教学用的显式循环，不是数值库",
-                    hi - lo + 1
-                )));
+                return Err(Error::InvalidInput(format!(
+                "the sum would take {} steps (limit {MAX_STEPS}); sums are explicit teaching loops, not a numeric library",
+                hi - lo + 1
+            )));
             }
             let mut acc = C::ZERO;
             for k in lo..=hi {
@@ -2435,16 +2439,18 @@ pub fn eval_value(e: &Expr, env: &HashMap<String, f64>) -> Result<Value, Error> 
             }
             Value::Scalar(acc.mul(C::real(h / 3.0)))
         }
-        E::Deriv(..) => return Err(Error::from("∂ 是符号算子：数值求值请先符号微分或有限差分")),
+        E::Deriv(..) => return Err(Error::UnsupportedOperation(
+            "`∂` is a symbolic operator: differentiate symbolically first, or use a finite difference".into(),
+        )),
         E::Grad(_) | E::Laplacian(_) => {
             return Err(
                 ("∇/∇² 是符号算子：数值求值需要离散化（走生成代码车道）".to_string()).into(),
             )
         }
         E::Indexed { .. } => {
-            return Err(Error::from(
-                "索引符号的数值求值需要索引环境（第一版不支持）".to_string(),
-            ))
+            return Err(Error::UnsupportedOperation(
+            "evaluating an indexed symbol needs an index environment, which this version does not provide".into(),
+        ))
         }
         E::MatPattern(_) => {
             return Err(
@@ -2624,8 +2630,9 @@ pub fn check_calls_with_shapes(
             // poly_coeffs(poly, x): the same precondition as roots (a univariate polynomial in x)
             if name == "poly_coeffs" {
                 let Expr::Var(v) = &args[1] else {
-                    return Err(Error::from(
-                        "`poly_coeffs(poly, x)` 的第二个参数必须是一个变量名",
+                    return Err(Error::InvalidInput(
+                        "`poly_coeffs(poly, x)`: the second argument must be a variable name"
+                            .into(),
                     ));
                 };
                 poly_coeffs_vec(&args[0], v)?;
@@ -2634,7 +2641,9 @@ pub fn check_calls_with_shapes(
             // non-polynomial shapes are rejected right here
             if name == "roots" {
                 let Expr::Var(v) = &args[1] else {
-                    return Err(Error::from("`roots(poly, x)` 的第二个参数必须是一个变量名"));
+                    return Err(Error::InvalidInput(
+                        "`roots(poly, x)`: the second argument must be a variable name".into(),
+                    ));
                 };
                 solve_poly(&args[0], v)?;
             }
@@ -2668,9 +2677,9 @@ pub fn check_calls_with_shapes(
                         solve_system(&eqs, &vars)?;
                     }
                     _ => {
-                        return Err(Error::from(
-                            "`solve(expr, x)` 的第二个参数必须是一个变量名或变量名列表".to_string(),
-                        ))
+                        return Err(Error::InvalidInput(
+            "`solve(expr, x)`: the second argument must be a variable name or a list of names".into(),
+        ))
                     }
                 }
             }
@@ -2727,8 +2736,8 @@ fn c_call_n(name: &str, args: &[C]) -> Result<C, Error> {
         if v.is_real() {
             Ok(v.re)
         } else {
-            Err(Error::from(format!(
-                "`{name}` 只对实数有定义（得到 {v:?}）"
+            Err(Error::InvalidInput(format!(
+                "`{name}` is defined for real numbers only (got {v:?})"
             )))
         }
     };
@@ -2741,7 +2750,11 @@ fn c_call_n(name: &str, args: &[C]) -> Result<C, Error> {
         // guessing the bounds would silently turn a miswritten call into a clamp that "looks
         // fine".
         "clamp" => C::real(real(args[0])?.max(real(args[1])?).min(real(args[2])?)),
-        other => return Err(Error::from(format!("`{other}` 不是标量多参函数"))),
+        other => {
+            return Err(Error::InvalidInput(format!(
+                "`{other}` is not a scalar multi-argument function"
+            )))
+        }
     })
 }
 
@@ -2762,7 +2775,11 @@ fn c_call(name: &str, x: C) -> Result<C, Error> {
         "conj" => x.conj(),
         "re" => C::real(x.re),
         "im" => C::real(x.im),
-        other => return Err(Error::from(format!("求值时不支持函数 `{other}`"))),
+        other => {
+            return Err(Error::UnsupportedOperation(format!(
+                "the function `{other}` is not supported during evaluation"
+            )))
+        }
     })
 }
 
@@ -2882,7 +2899,9 @@ fn mat_mul_value_of(a: Value, b: Value) -> Result<Value, Error> {
 fn eval_i(e: &Expr, env: &HashMap<String, f64>) -> Result<i64, Error> {
     let v = eval(e, env)?;
     if math::fract(v) != 0.0 {
-        return Err(Error::from(format!("求和界限必须是整数，得到 {v}")));
+        return Err(Error::InvalidInput(format!(
+            "the sum bounds must be integers, got {v}"
+        )));
     }
     Ok(v as i64)
 }
@@ -3232,15 +3251,18 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                 }
                 return match expand_call(e) {
                     Some(x) => dim_check(&x, dims),
-                    None => Err(Error::from(
-                        "`solve` 的条件不满足（第二个参数必须是变量名或变量名列表，\
-                         且方程对未知数线性）",
-                    )),
+                    None => Err(Error::InvalidInput(
+            "`solve` needs its second argument to be a variable name or a list of names, and the equations to be linear in the unknowns".into(),
+        )),
                 };
             }
             if matches!(name.as_str(), "__quad_root_1" | "__quad_root_2") {
                 if args.len() != 3 {
-                    return Err(Error::from(format!("内部二次根算子 `{name}` 需要三个系数")));
+                    return Err(Error::FunctionArity {
+                        name: name.clone(),
+                        expected: 3,
+                        got: args.len(),
+                    });
                 }
                 // When a·x²+b·x+c is homogeneous, both b/a and c/b have x's dimension.
                 let da = dim_check(&args[0], dims)?;
@@ -3340,12 +3362,10 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                         if let Some(Expr::Var(v)) = args.get(1) {
                             let dv = dims.get(v).copied().unwrap_or(Dim::ZERO);
                             if !dv.is_zero() {
-                                return Err(Error::from(format!(
-                                    "`poly_coeffs` 的系数是不同量纲的（`{v}` 的量纲是 {}）：\
-                                     矩阵要求元素同量纲 —— 请对**无量纲**变量取系数\
-                                     （例如先除以特征量，或改用 `roots` 求根）",
-                                    dv.display()
-                                )));
+                                return Err(Error::InvalidInput(format!(
+                "`poly_coeffs`: the coefficients of `{v}` have dimension {}, but matrix elements must share one dimension; take coefficients of a dimensionless variable (for example divide by a scale first) or use `roots`",
+                dv.display()
+            )));
                             }
                         }
                     }
@@ -3356,23 +3376,26 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                         // not "the equation is linear in it" (a `roots(exp(x), x)` used to be
                         // reported as a solve error).
                         None if name == "poly_coeffs" => {
-                            return Err(Error::from(
-                                "`poly_coeffs(poly, x)` 的条件不满足（第二个参数必须是变量名，\
-                                 且第一个参数是它的一元多项式）",
-                            ))
+                            return Err(Error::InvalidInput(
+            "`poly_coeffs(poly, x)` needs its second argument to be a variable name and its first to be a univariate polynomial in it".into(),
+        ))
                         }
                         None if name == "roots" => {
-                            return Err(Error::from(
-                                "`roots(poly, x)` 的条件不满足（第二个参数必须是变量名，\
-                                 且第一个参数是它的一元多项式）",
-                            ))
+                            return Err(Error::InvalidInput(
+            "`roots(poly, x)` needs its second argument to be a variable name and its first to be a univariate polynomial in it".into(),
+        ))
                         }
-                        None => return Err(Error::from(
-                            "`solve` 的条件不满足（第二个参数必须是一个变量名，且方程对它线性）",
-                        )),
+                        None => return Err(Error::InvalidInput(
+            "`solve` needs its second argument to be a variable name and the equation to be linear in it".into(),
+        )),
                     }
                 }
-                other => return Err(Error::from(format!("未知函数 `{other}`"))),
+                other => {
+                    return Err(Error::UnknownFunction {
+                        name: other.to_string(),
+                        suggestion: String::new(),
+                    })
+                }
             }
         }
         Mat(rows) => {
@@ -3403,7 +3426,10 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
             // participate).
             let grid = p.grid().ok_or("模式矩阵各行长度不一致")?;
             if grid.0 < 2 || grid.1 < 2 {
-                return Err(Error::from("模式矩阵至少要 2×2（否则省略号没有意义）"));
+                return Err(Error::InvalidInput(
+                    "a pattern matrix must be at least 2×2, otherwise the ellipsis means nothing"
+                        .into(),
+                ));
             }
             let mut acc: Option<Dim> = None;
             for e in p.elements() {
@@ -3450,7 +3476,9 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
             let dl = dim_check(lower, dims)?;
             let du = dim_check(upper, dims)?;
             if !dl.is_zero() || !du.is_zero() {
-                return Err(Error::from("求和界限必须无量纲（求和指标是计数器）"));
+                return Err(Error::InvalidInput(
+                    "the sum bounds must be dimensionless (the index is a counter)".into(),
+                ));
             }
             let mut inner = dims.clone();
             inner.insert(var.clone(), Dim::ZERO); // the bound index is dimensionless
@@ -3481,9 +3509,9 @@ pub fn dim_check(e: &Expr, dims: &HashMap<String, Dim>) -> Result<Dim, Error> {
                 .ok_or_else(|| format!("索引符号 `{name}` 未声明量纲"))?;
             for i in indices {
                 if !dims.get(i).map(|x| x.is_zero()).unwrap_or(false) {
-                    return Err(Error::from(format!(
-                        "索引 `{i}` 必须是无量纲符号（未声明或带量纲）"
-                    )));
+                    return Err(Error::InvalidInput(format!(
+                "the index `{i}` must be a dimensionless symbol (it is undeclared or carries a dimension)"
+            )));
                 }
             }
             d
@@ -7573,8 +7601,11 @@ mod tests {
         // Σ(i, 1, 1e9) used to "run all night"; now it is an explicit error
         let s = sum("i", num(1.0), num(1.0e9), var("i"));
         let err = eval_value(&s, &HashMap::new()).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("超过上限"), "{text}");
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        assert!(
+            err.render(crate::i18n::Locale::En).contains("limit"),
+            "{err}"
+        );
         // Small intervals as usual
         let small = sum("i", num(1.0), num(10.0), var("i"));
         assert_eq!(eval(&small, &HashMap::new()).unwrap(), 55.0);
@@ -9664,10 +9695,12 @@ mod tests {
         let poly = add(mul(var("k"), pow(var("x"), num(2.0))), var("F"));
         let call = Expr::Call("poly_coeffs".into(), vec![poly, var("x")]);
         let err = dim_check(&call, &dims).unwrap_err();
-        let text = err.to_string();
-        assert!(text.contains("量纲"), "{text}");
-        let text = err.to_string();
-        assert!(text.contains("无量纲"), "{text}");
+        assert_eq!(err.code(), "invalid-input", "{err}");
+        let en = err.render(crate::i18n::Locale::En);
+        assert!(
+            en.contains("dimension") && en.contains("dimensionless"),
+            "{en}"
+        );
         // A dimensionless variable → pass, and the result is a dimensionless matrix
         let ok = Expr::Call(
             "poly_coeffs".into(),
