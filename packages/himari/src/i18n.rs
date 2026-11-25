@@ -259,6 +259,13 @@ pub enum Error {
     DivisionByZero,
     /// The complex logarithm was taken of zero.
     LogOfZero,
+    /// Two units have different dimensions, so no conversion between them exists.
+    IncompatibleUnits {
+        from: String,
+        to: String,
+        from_dim: String,
+        to_dim: String,
+    },
     /// A user-visible label for an unnamed formula ("formula #3"), localized like a message.
     FormulaLabel(usize),
     /// A message that has not been catalogued yet. Rendering returns it verbatim, so a
@@ -326,6 +333,7 @@ impl Error {
             Error::NotEmittable(_) => "not-emittable",
             Error::UnsupportedOperation(_) => "unsupported-operation",
             Error::WgslReservedWord { .. } => "wgsl-reserved-word",
+            Error::IncompatibleUnits { .. } => "incompatible-units",
             Error::ExponentZeroDenominator { .. } => "exponent-zero-denominator",
             Error::TargetDimensionUnreachable { .. } => "target-dimension-unreachable",
             Error::ExpectedSingleFormula { .. } => "expected-single-formula",
@@ -374,6 +382,7 @@ impl Error {
             Error::NotEmittable(_) => "the expression cannot be emitted: {0}",
             Error::UnsupportedOperation(_) => "unsupported operation: {0}",
             Error::WgslReservedWord { .. } => "symbol `{0}` collides with the WGSL reserved word `{1}`: rename it or write the shader by hand",
+            Error::IncompatibleUnits { .. } => "cannot convert `{0}` ({1}) to `{2}` ({3}): the dimensions differ",
             Error::ExponentZeroDenominator { .. } => "unit exponent `{0}` has a zero denominator",
             Error::TargetDimensionUnreachable { .. } => "these variables cannot form the dimension {0} ({1} basic dimensions are needed, the variables span only {2})",
             Error::ExpectedSingleFormula { .. } => "expected a single formula, got {0}",
@@ -434,6 +443,7 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符号 `{0}` 与 WGSL 保留字 `{1}` 撞名：改个名字，或手写 shader"
             }
+            Error::IncompatibleUnits { .. } => "量纲不同，不能换算：`{0}` 是 {1}，`{2}` 是 {3}",
             Error::ExponentZeroDenominator { .. } => "单位指数 `{0}` 的分母为零",
             Error::TargetDimensionUnreachable { .. } => {
                 "这些变量凑不出量纲 {0}（需要 {1} 维基本量，变量只张出 {2} 维）"
@@ -500,6 +510,7 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符號 `{0}` 與 WGSL 保留字 `{1}` 撞名：改個名字，或手寫 shader"
             }
+            Error::IncompatibleUnits { .. } => "量綱不同，不能換算：`{0}` 是 {1}，`{2}` 是 {3}",
             Error::ExponentZeroDenominator { .. } => "單位指數 `{0}` 的分母為零",
             Error::TargetDimensionUnreachable { .. } => {
                 "這些變數湊不出量綱 {0}（需要 {1} 維基本量，變數只張出 {2} 維）"
@@ -558,6 +569,7 @@ impl Error {
             Error::NotEmittable(_) => "この式はコードとして出力できません：{0}",
             Error::UnsupportedOperation(_) => "未対応の操作です：{0}",
             Error::WgslReservedWord { .. } => "シンボル `{0}` は WGSL の予約語 `{1}` と衝突します：名前を変えるか、シェーダーを手書きしてください",
+            Error::IncompatibleUnits { .. } => "次元が異なるため `{0}`（{1}）を `{2}`（{3}）へ換算できません",
             Error::ExponentZeroDenominator { .. } => "単位の指数 `{0}` の分母がゼロです",
             Error::TargetDimensionUnreachable { .. } => "これらの変数では次元 {0} を作れません（基本量 {1} 次元が必要ですが、変数は {2} 次元しか張りません）",
             Error::ExpectedSingleFormula { .. } => "式は 1 つであるべきですが、{0} 個あります",
@@ -609,6 +621,7 @@ impl Error {
             Error::NotEmittable(_) => "이 식은 코드로 내보낼 수 없습니다: {0}",
             Error::UnsupportedOperation(_) => "지원하지 않는 연산입니다: {0}",
             Error::WgslReservedWord { .. } => "기호 `{0}`이(가) WGSL 예약어 `{1}`와 충돌합니다: 이름을 바꾸거나 셰이더를 직접 작성하세요",
+            Error::IncompatibleUnits { .. } => "차원이 달라 `{0}`({1})을(를) `{2}`({3})로 변환할 수 없습니다",
             Error::ExponentZeroDenominator { .. } => "단위 지수 `{0}`의 분모가 0입니다",
             Error::TargetDimensionUnreachable { .. } => "이 변수들로는 차원 {0}을(를) 만들 수 없습니다(기본량 {1}차원이 필요하지만 변수는 {2}차원만 생성합니다)",
             Error::ExpectedSingleFormula { .. } => "수식이 하나여야 하는데 {0}개가 있습니다",
@@ -660,6 +673,7 @@ impl Error {
             Error::NotEmittable(_) => "cette expression ne peut pas être émise : {0}",
             Error::UnsupportedOperation(_) => "opération non prise en charge : {0}",
             Error::WgslReservedWord { .. } => "le symbole `{0}` entre en conflit avec le mot réservé WGSL `{1}` : renomme-le ou écris le shader à la main",
+            Error::IncompatibleUnits { .. } => "impossible de convertir `{0}` ({1}) en `{2}` ({3}) : les dimensions diffèrent",
             Error::ExponentZeroDenominator { .. } => "l'exposant d'unité `{0}` a un dénominateur nul",
             Error::TargetDimensionUnreachable { .. } => "ces variables ne peuvent pas former la dimension {0} ({1} dimensions de base sont nécessaires, les variables n'en couvrent que {2})",
             Error::ExpectedSingleFormula { .. } => "une seule formule était attendue, {0} ont été trouvées",
@@ -711,6 +725,7 @@ impl Error {
             Error::NotEmittable(_) => "esta expresión no puede emitirse: {0}",
             Error::UnsupportedOperation(_) => "operación no soportada: {0}",
             Error::WgslReservedWord { .. } => "el símbolo `{0}` coincide con la palabra reservada de WGSL `{1}`: cámbiale el nombre o escribe el shader a mano",
+            Error::IncompatibleUnits { .. } => "no se puede convertir `{0}` ({1}) a `{2}` ({3}): las dimensiones difieren",
             Error::ExponentZeroDenominator { .. } => "el exponente de unidad `{0}` tiene denominador cero",
             Error::TargetDimensionUnreachable { .. } => "estas variables no pueden formar la dimensión {0} (se necesitan {1} dimensiones básicas, las variables solo abarcan {2})",
             Error::ExpectedSingleFormula { .. } => "se esperaba una sola fórmula, se encontraron {0}",
@@ -762,6 +777,7 @@ impl Error {
             Error::NotEmittable(_) => "выражение невозможно сгенерировать: {0}",
             Error::UnsupportedOperation(_) => "неподдерживаемая операция: {0}",
             Error::WgslReservedWord { .. } => "символ `{0}` совпадает с зарезервированным словом WGSL `{1}`: переименуйте его или напишите шейдер вручную",
+            Error::IncompatibleUnits { .. } => "нельзя перевести `{0}` ({1}) в `{2}` ({3}): размерности различаются",
             Error::ExponentZeroDenominator { .. } => "знаменатель показателя степени единицы `{0}` равен нулю",
             Error::TargetDimensionUnreachable { .. } => "эти переменные не могут образовать размерность {0} (нужно {1} базовых размерностей, а переменные дают только {2})",
             Error::ExpectedSingleFormula { .. } => "ожидалась одна формула, найдено {0}",
@@ -821,6 +837,7 @@ impl Error {
             Error::NotEmittable(_) => "لا يمكن توليد تعليمات برمجية من هذا التعبير: {0}",
             Error::UnsupportedOperation(_) => "عملية غير مدعومة: {0}",
             Error::WgslReservedWord { .. } => "الرمز `{0}` يتعارض مع الكلمة المحجوزة في WGSL `{1}`: غيّر اسمه أو اكتب الـ shader يدويًا",
+            Error::IncompatibleUnits { .. } => "لا يمكن تحويل `{0}` ({1}) إلى `{2}` ({3}): الأبعاد مختلفة",
             Error::ExponentZeroDenominator { .. } => "مقام أس الوحدة `{0}` يساوي صفرًا",
             Error::TargetDimensionUnreachable { .. } => "لا يمكن لهذه المتغيرات تكوين البعد {0} (يلزم {1} بعدًا أساسيًا، لكن المتغيرات تمتد على {2} فقط)",
             Error::ExpectedSingleFormula { .. } => "كانت الصيغة المتوقعة واحدة، لكن وُجدت {0}",
@@ -1324,6 +1341,12 @@ impl Error {
             } => vec![target.clone(), needed.to_string(), spanned.to_string()],
             Error::ExpectedSingleFormula { got } => vec![got.to_string()],
             Error::ComplexEvalResult { re, im } => vec![format!("{re}"), format!("{im}")],
+            Error::IncompatibleUnits {
+                from,
+                to,
+                from_dim,
+                to_dim,
+            } => vec![from.clone(), from_dim.clone(), to.clone(), to_dim.clone()],
             _ => Vec::new(),
         }
     }
@@ -1586,10 +1609,16 @@ mod catalogue_completeness_tests {
             Error::ComplexEvalResult { re: 1.0, im: 2.0 },
             Error::DivisionByZero,
             Error::LogOfZero,
+            Error::IncompatibleUnits {
+                from: "ft".into(),
+                to: "s".into(),
+                from_dim: "m".into(),
+                to_dim: "s".into(),
+            },
             Error::FormulaLabel(3),
             Error::Message("staged".into()),
         ];
-        assert_eq!(all.len(), 45, "update this list when a variant is added");
+        assert_eq!(all.len(), 46, "update this list when a variant is added");
         for err in &all {
             for locale in Locale::ALL {
                 let text = err.render(locale);
