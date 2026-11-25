@@ -291,19 +291,22 @@ fn unparen(e: &Expr) -> &Expr {
     }
 }
 
-/// A statically-string expression: a string literal, a `format!`, a string literal or
-/// `format!` carried through `.to_string()` / `.to_owned()` / `.into()`, `String::from(<lit>)`.
-/// A method call on an OPAQUE receiver is deliberately absent: `.into()` on a variable could
-/// target a typed error, and the gate refuses to guess.
+/// A statically-string expression: a string literal, a `format!`, `String::from(<lit>)`, or any
+/// of those carried through a chain of `.to_string()` / `.to_owned()` / `.into()`. A method call
+/// on an OPAQUE receiver is deliberately absent: `.into()` on a variable could target a typed
+/// error, and the gate refuses to guess.
 fn static_string_shape(expr: &Expr) -> bool {
     let e = unparen(expr);
     match e {
         _ if lit_str(e) || is_format_macro(e) => true,
         Expr::MethodCall(m) => {
             let name = m.method.to_string();
-            let recv = unparen(&m.receiver);
+            // The receiver recursion (rather than a one-level literal check) is what closes the
+            // hole that let `Err(("…".to_string()).into())` through: an `.into()` wrapping a
+            // staged string is still a staged string. A variable receiver stays uncounted —
+            // `.into()` on an opaque value could target a typed error.
             (name == "to_string" || name == "to_owned" || name == "into")
-                && (lit_str(recv) || is_format_macro(recv))
+                && static_string_shape(&m.receiver)
         }
         Expr::Call(call) => {
             matches!(
@@ -1459,6 +1462,20 @@ fn u2() -> Result<(), Baz> { Err(Baz::plain("x")) }"#,
         assert_eq!(c.map_err_stage, 1, "map_err(format!): {c:?}");
         let c = himari_counts(r#"fn f() -> Result<(), String> { Err("bad input".to_string()) }"#);
         assert_eq!(c.err_stage, 1, "Err(literal.to_string()): {c:?}");
+        // A staged string wrapped in a conversion is still a staged string. This exact shape
+        // was LIVE in the eval lane (`Err(("…".to_string()).into())`) and invisible to the gate
+        // until the receiver check became recursive.
+        let c = himari_counts(
+            r#"fn f() -> Result<(), Error> { Err(("bad input".to_string()).into()) }"#,
+        );
+        assert_eq!(c.err_stage, 1, "Err(literal.to_string().into()): {c:?}");
+        let c = himari_counts(
+            r#"fn f(x: &str) -> Result<(), Error> { Err((format!("bad {x}").to_owned()).into()) }"#,
+        );
+        assert_eq!(c.err_stage, 1, "Err(format!.to_owned().into()): {c:?}");
+        // ...but a conversion of an OPAQUE value stays uncounted: it may target a typed error.
+        let c = himari_counts(r#"fn f(e: String) -> Result<(), Error> { Err(e.into()) }"#);
+        assert_eq!(c.err_stage, 0, "opaque .into() is not decidable: {c:?}");
         let c =
             himari_counts(r#"fn f(d: &str) -> Result<(), Error> { Err((format!("{d}")).into()) }"#);
         assert_eq!(c.err_stage, 1, "Err(format!.into()): {c:?}");

@@ -281,6 +281,20 @@ pub enum Error {
     NotPolynomial {
         var: String,
     },
+    /// A binary operator (`+` / `-`) received sides with different dimensions; the operator
+    /// is named so the message points at the exact mismatch instead of a bare pair.
+    OperatorDimensionMismatch {
+        operator: String,
+        left: String,
+        right: String,
+    },
+    /// A per-equation failure inside a system, wrapped with the equation's 1-based position.
+    /// The inner variant is preserved (never downgraded to a `Message`), and rendering recurses:
+    /// the frame and the inner message are both rendered in the target locale.
+    InEquation {
+        index: usize,
+        error: Box<Error>,
+    },
     /// A user-visible label for an unnamed formula ("formula #3"), localized like a message.
     FormulaLabel(usize),
     /// A message that has not been catalogued yet. Rendering returns it verbatim, so a
@@ -348,6 +362,8 @@ impl Error {
             Error::NotEmittable(_) => "not-emittable",
             Error::UnsupportedOperation(_) => "unsupported-operation",
             Error::WgslReservedWord { .. } => "wgsl-reserved-word",
+            Error::OperatorDimensionMismatch { .. } => "operator-dimension-mismatch",
+            Error::InEquation { .. } => "in-equation",
             Error::ExponentOutOfRange { .. } => "exponent-out-of-range",
             Error::NotPolynomial { .. } => "not-polynomial",
             Error::RootFindingFailed { .. } => "root-finding-failed",
@@ -400,6 +416,8 @@ impl Error {
             Error::NotEmittable(_) => "the expression cannot be emitted: {0}",
             Error::UnsupportedOperation(_) => "unsupported operation: {0}",
             Error::WgslReservedWord { .. } => "symbol `{0}` collides with the WGSL reserved word `{1}`: rename it or write the shader by hand",
+            Error::OperatorDimensionMismatch { .. } => "`{0}` needs both sides to share a dimension: {1} vs {2}",
+            Error::InEquation { .. } => "in equation {0}: {1}",
             Error::ExponentOutOfRange { .. } => "unit exponent `{0}` is outside the dimension grid range (half-integer exponents must fit in i16)",
             Error::NotPolynomial { .. } => "expected a univariate polynomial in `{0}`: `{0}` appears inside a function, a denominator, or a non-integer power",
             Error::RootFindingFailed { .. } => "numeric root finding failed: {0}; the polynomial may be ill-conditioned — rescale the variable or reduce the degree",
@@ -464,6 +482,8 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符号 `{0}` 与 WGSL 保留字 `{1}` 撞名：改个名字，或手写 shader"
             }
+            Error::OperatorDimensionMismatch { .. } => "`{0}` 两侧的量纲必须一致：{1} vs {2}",
+            Error::InEquation { .. } => "第 {0} 条方程：{1}",
             Error::ExponentOutOfRange { .. } => {
                 "单位指数 `{0}` 超出量纲格范围（半整数指数必须落在 i16 内）"
             }
@@ -540,6 +560,8 @@ impl Error {
             Error::WgslReservedWord { .. } => {
                 "符號 `{0}` 與 WGSL 保留字 `{1}` 撞名：改個名字，或手寫 shader"
             }
+            Error::OperatorDimensionMismatch { .. } => "`{0}` 兩側的量綱必須一致：{1} vs {2}",
+            Error::InEquation { .. } => "第 {0} 條方程式：{1}",
             Error::ExponentOutOfRange { .. } => {
                 "單位指數 `{0}` 超出量綱格範圍（半整數指數必須落在 i16 內）"
             }
@@ -608,6 +630,8 @@ impl Error {
             Error::NotEmittable(_) => "この式はコードとして出力できません：{0}",
             Error::UnsupportedOperation(_) => "未対応の操作です：{0}",
             Error::WgslReservedWord { .. } => "シンボル `{0}` は WGSL の予約語 `{1}` と衝突します：名前を変えるか、シェーダーを手書きしてください",
+            Error::OperatorDimensionMismatch { .. } => "`{0}` の両辺は次元を揃える必要があります：{1} vs {2}",
+            Error::InEquation { .. } => "{0} 番目の方程式：{1}",
             Error::ExponentOutOfRange { .. } => "単位の指数 `{0}` が次元グリッドの範囲外です（半整数の指数は i16 に収まる必要があります）",
             Error::NotPolynomial { .. } => "`{0}` の一変数多項式が必要です：`{0}` が関数・分母・非整数冪の中に現れる場合は使えません",
             Error::RootFindingFailed { .. } => "数値求根に失敗しました：{0}。多項式が悪条件の可能性があります — 変数を再スケールするか次数を下げてください",
@@ -663,9 +687,11 @@ impl Error {
             Error::NotEmittable(_) => "이 식은 코드로 내보낼 수 없습니다: {0}",
             Error::UnsupportedOperation(_) => "지원하지 않는 연산입니다: {0}",
             Error::WgslReservedWord { .. } => "기호 `{0}`이(가) WGSL 예약어 `{1}`와 충돌합니다: 이름을 바꾸거나 셰이더를 직접 작성하세요",
+            Error::OperatorDimensionMismatch { .. } => "`{0}`의 양변은 차원이 같아야 합니다: {1} vs {2}",
+            Error::InEquation { .. } => "{0}번 방정식: {1}",
             Error::ExponentOutOfRange { .. } => "단위 지수 `{0}`이(가) 차원 격자 범위를 벗어났습니다 (반정수 지수는 i16 안에 들어가야 합니다)",
             Error::NotPolynomial { .. } => "`{0}`에 대한 일변수 다항식이 필요합니다: `{0}`이(가) 함수/분모/비정수 거듭제곱 안에 있으면 사용할 수 없습니다",
-            Error::RootFindingFailed { .. } => "수치적 근 찾기에 실패했습니다: {0}. 다항식이 병태일 수 있습니다 — 변수를 다시 조정하거나 차수를 낮추세요",
+            Error::RootFindingFailed { .. } => "수치적 근 찾기에 실패했습니다: {0}. 다항식이 악조건일 수 있습니다 — 변수를 다시 조정하거나 차수를 낮추세요",
             Error::IncompatibleUnits { .. } => "차원이 달라 `{0}`({1})을(를) `{2}`({3})로 변환할 수 없습니다",
             Error::ExponentZeroDenominator { .. } => "단위 지수 `{0}`의 분모가 0입니다",
             Error::TargetDimensionUnreachable { .. } => "이 변수들로는 차원 {0}을(를) 만들 수 없습니다(기본량 {1}차원이 필요하지만 변수는 {2}차원만 생성합니다)",
@@ -718,6 +744,8 @@ impl Error {
             Error::NotEmittable(_) => "cette expression ne peut pas être émise : {0}",
             Error::UnsupportedOperation(_) => "opération non prise en charge : {0}",
             Error::WgslReservedWord { .. } => "le symbole `{0}` entre en conflit avec le mot réservé WGSL `{1}` : renomme-le ou écris le shader à la main",
+            Error::OperatorDimensionMismatch { .. } => "`{0}` exige que les deux côtés partagent une dimension : {1} vs {2}",
+            Error::InEquation { .. } => "équation {0} : {1}",
             Error::ExponentOutOfRange { .. } => "l'exposant d'unité `{0}` est hors de la plage de la grille dimensionnelle (un exposant demi-entier doit tenir dans un i16)",
             Error::NotPolynomial { .. } => "un polynôme univarié en `{0}` est attendu : `{0}` apparaît dans une fonction, un dénominateur ou une puissance non entière",
             Error::RootFindingFailed { .. } => "la recherche numérique de racines a échoué : {0} ; le polynôme est peut-être mal conditionné — remettez à l'échelle ou réduisez le degré",
@@ -773,6 +801,8 @@ impl Error {
             Error::NotEmittable(_) => "esta expresión no puede emitirse: {0}",
             Error::UnsupportedOperation(_) => "operación no soportada: {0}",
             Error::WgslReservedWord { .. } => "el símbolo `{0}` coincide con la palabra reservada de WGSL `{1}`: cámbiale el nombre o escribe el shader a mano",
+            Error::OperatorDimensionMismatch { .. } => "`{0}` necesita que ambos lados compartan la dimensión: {1} vs {2}",
+            Error::InEquation { .. } => "ecuación {0}: {1}",
             Error::ExponentOutOfRange { .. } => "el exponente de unidad `{0}` está fuera del rango de la rejilla dimensional (un exponente semientero debe caber en un i16)",
             Error::NotPolynomial { .. } => "se esperaba un polinomio univariante en `{0}`: `{0}` aparece dentro de una función, un denominador o una potencia no entera",
             Error::RootFindingFailed { .. } => "la búsqueda numérica de raíces falló: {0}; el polinomio puede estar mal condicionado — reescala la variable o reduce el grado",
@@ -828,6 +858,8 @@ impl Error {
             Error::NotEmittable(_) => "выражение невозможно сгенерировать: {0}",
             Error::UnsupportedOperation(_) => "неподдерживаемая операция: {0}",
             Error::WgslReservedWord { .. } => "символ `{0}` совпадает с зарезервированным словом WGSL `{1}`: переименуйте его или напишите шейдер вручную",
+            Error::OperatorDimensionMismatch { .. } => "у `{0}` обе части должны иметь одну размерность: {1} vs {2}",
+            Error::InEquation { .. } => "уравнение {0}: {1}",
             Error::ExponentOutOfRange { .. } => "показатель степени единицы `{0}` вне диапазона сетки размерностей (полуцелый показатель должен помещаться в i16)",
             Error::NotPolynomial { .. } => "ожидается одномерный многочлен по `{0}`: `{0}` встречается внутри функции, знаменателя или нецелой степени",
             Error::RootFindingFailed { .. } => "численный поиск корней не удался: {0}; возможно, многочлен плохо обусловлен — масштабируйте переменную или понизьте степень",
@@ -891,6 +923,8 @@ impl Error {
             Error::NotEmittable(_) => "لا يمكن توليد تعليمات برمجية من هذا التعبير: {0}",
             Error::UnsupportedOperation(_) => "عملية غير مدعومة: {0}",
             Error::WgslReservedWord { .. } => "الرمز `{0}` يتعارض مع الكلمة المحجوزة في WGSL `{1}`: غيّر اسمه أو اكتب الـ shader يدويًا",
+            Error::OperatorDimensionMismatch { .. } => "`{0}` يتطلب أن تتشارك الجهتان البُعد نفسه: {1} مقابل {2}",
+            Error::InEquation { .. } => "المعادلة {0}: {1}",
             Error::ExponentOutOfRange { .. } => "أس الوحدة `{0}` خارج نطاق شبكة الأبعاد (يجب أن يتسع الأس نصف الصحيح في i16)",
             Error::NotPolynomial { .. } => "من المتوقع كثير حدود أحادي المتغير في `{0}`: يظهر `{0}` داخل دالة أو مقام أو أس غير صحيح",
             Error::RootFindingFailed { .. } => "فشل البحث العددي عن الجذور: {0}؛ قد تكون كثيرة الحدود سيئة الاشتراط — أعد قياس المتغير أو أنقص الدرجة",
@@ -935,6 +969,16 @@ impl Error {
 pub fn render(code: &Error, args: &[&str], locale: Locale) -> String {
     if let Error::Message(text) = code {
         return text.clone();
+    }
+    // A composed variant renders its inner error at the TARGET locale: the frame and the inner
+    // message translate together, because the inner `Box<Error>` keeps the full variant (this is
+    // exactly what pre-stored argument strings could not do — they would freeze the inner in
+    // English).
+    if let Error::InEquation { index, error } = code {
+        let inner = error.render(locale);
+        let owned = [index.to_string(), inner];
+        let refs: Vec<&str> = owned.iter().map(String::as_str).collect();
+        return basic_render(code, &refs, locale);
     }
     // The spelling suggestion is advice, not part of the failure sentence: it is appended only
     // when a real near-match exists, in the locale's own phrasing.
@@ -1407,6 +1451,12 @@ impl Error {
             Error::RootFindingFailed { reason } => vec![reason.clone()],
             Error::ExponentOutOfRange { exponent } => vec![exponent.clone()],
             Error::NotPolynomial { var } => vec![var.clone()],
+            Error::OperatorDimensionMismatch {
+                operator,
+                left,
+                right,
+            } => vec![operator.clone(), left.clone(), right.clone()],
+            Error::InEquation { index, .. } => vec![index.to_string()],
             _ => Vec::new(),
         }
     }
@@ -1572,6 +1622,19 @@ mod catalogue_completeness_tests {
             cx.render(Locale::En),
             "the scalar evaluation is complex (1+2j): use eval_value for the complex value"
         );
+        let op = Error::OperatorDimensionMismatch {
+            operator: "+".into(),
+            left: "m".into(),
+            right: "s".into(),
+        };
+        assert_eq!(
+            op.arguments(),
+            vec!["+".to_string(), "m".to_string(), "s".to_string()]
+        );
+        assert_eq!(
+            op.render(Locale::En),
+            "`+` needs both sides to share a dimension: m vs s"
+        );
     }
 
     #[test]
@@ -1682,10 +1745,19 @@ mod catalogue_completeness_tests {
                 exponent: "1000000000/2".into(),
             },
             Error::NotPolynomial { var: "x".into() },
+            Error::OperatorDimensionMismatch {
+                operator: "+".into(),
+                left: "m".into(),
+                right: "s".into(),
+            },
+            Error::InEquation {
+                index: 2,
+                error: Box::new(Error::DivisionByZero),
+            },
             Error::FormulaLabel(3),
             Error::Message("staged".into()),
         ];
-        assert_eq!(all.len(), 49, "update this list when a variant is added");
+        assert_eq!(all.len(), 51, "update this list when a variant is added");
         for err in &all {
             for locale in Locale::ALL {
                 let text = err.render(locale);
