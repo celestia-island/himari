@@ -10007,6 +10007,25 @@ mod tests {
     // (the gate is the last line of defence, not the only one).
 
     #[test]
+    fn from_error_for_fronterror_is_field_identical_to_plain() {
+        // The typed conversion must stay field-identical to `plain`: same rendered message,
+        // same code, same zero origin position. The R3 mutation round moved line/col in the
+        // impl and nothing went red — this pin makes that drift red.
+        let cases = vec![
+            Error::NotPolynomial { var: "x".into() },
+            Error::Inconsistent,
+            Error::MalformedUnit("m^3/2".into(), "detail".into()),
+        ];
+        for err in cases {
+            assert_eq!(
+                FrontError::from(err.clone()),
+                FrontError::plain(err.clone()),
+                "{err:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_missing_eval_variable_is_undeclared_symbol() {
         let err = eval(&var("x"), &HashMap::new()).unwrap_err();
         assert_eq!(err.code(), "undeclared-symbol", "{err}");
